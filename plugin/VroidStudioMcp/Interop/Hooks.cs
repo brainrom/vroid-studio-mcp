@@ -387,6 +387,33 @@ public static class Hooks
         }
         PluginLog.LogInfo($"patched {n} ctor(s) derived from {baseType.FullName}");
     }
+    // ---- runtime (on-demand) hooks: patch an arbitrary method to the same OnHook logger, so new
+    // candidates can be discovered without rebuilding the plugin (dev/TCP only). ----
+    private static HarmonyMethod _onHookMethod;
+    private static readonly List<string> _dynamicHooks = new();
+    public static HarmonyMethod OnHookMethod => _onHookMethod ??= new HarmonyMethod(
+        typeof(Hooks).GetMethod(nameof(OnHook), BindingFlags.Public | BindingFlags.Static));
+    public static List<string> DynamicHooks() => _dynamicHooks;
+    public static void AddDynamicHook(string typeName, string methodName)
+    {
+        PatchAllByName(typeName, methodName, OnHookMethod);
+        var key = $"{typeName}.{methodName}";
+        if (!_dynamicHooks.Contains(key)) _dynamicHooks.Add(key);
+    }
+    public static int RemoveDynamicHook(string typeName, string methodName)
+    {
+        var type = FindType(typeName);
+        if (type == null) return -1;
+        int n = 0;
+        foreach (var m in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static))
+        {
+            if (m.Name != methodName) continue;
+            try { Plugin.Harmony.Unpatch(m, HarmonyPatchType.All, Plugin.Harmony.Id); n++; } catch { }
+        }
+        _dynamicHooks.RemoveAll(x => x == $"{typeName}.{methodName}");
+        return n;
+    }
+
     public static void PatchAllByName(string typeName, string methodName, HarmonyMethod patch, bool prefix = false)
     {
         var type = FindType(typeName);

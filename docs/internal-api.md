@@ -271,6 +271,10 @@ overlay, `{dir,count,files}`), `label_set <section> <tab> <idx|resourceName> <te
 Base64 previews for the VLM harness are served by the public `preset_preview_range … b64` (inline in JSON,
 without writing files; count ≤ 12).
 
+General debug command (domain-independent): `hook <Full.Type.Name> <Method>` / `unhook …` / `hooks` —
+attaches the same method logger to arbitrary engine methods at runtime, so unknown call paths can be
+explored without rebuilding. Avoid hot getters (see §10).
+
 **Preset labels** (`PresetLabels`, `Runtime/PresetLabels.cs`): VRoid does not provide human-readable
 names, so `presets` puts into `name` a label from an external overlay, otherwise the resource id; Clear —
 `"(clear)"`. For the client this is just `name`; the source and mechanics are not exposed externally. The

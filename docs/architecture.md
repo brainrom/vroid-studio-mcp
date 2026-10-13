@@ -54,6 +54,7 @@ plugin/VroidStudioMcp/
       LabelHandlers.cs      // labels/label_set
       I18nHandlers.cs       // i18ndump/i18nreload/i18nlang
       SettingsHandlers.cs   // settingsprobe/dump/state/toggle/edit
+      DebugHandlers.cs      // hook/unhook/hooks (runtime method logger)
   MCP/
     McpHost.cs              // Streamable HTTP JSON-RPC on HttpListener (127.0.0.1:17891/mcp)
   Tests/                    // one file per test; they call Editor + the shared harness
