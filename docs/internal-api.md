@@ -222,7 +222,7 @@ Notes on resolution/safety:
 
 ## 9. Event/live model
 
-The plugin (with `debug_artifacts: true` in `servers.json`; off by default) writes JSONL to
+The plugin (with `dump_artifacts: true` in `servers.json`; off by default) writes JSONL to
 `<app root>/ui_events.jsonl`. Event types:
 
 | `event` | Source | Data |
@@ -239,8 +239,13 @@ The plugin (with `debug_artifacts: true` in `servers.json`; off by default) writ
 Plus a main-thread ticker — our own `MonoBehaviour` (`VroidTicker.Update`) — the point of execution of
 commands on the Unity main thread.
 
-Exploration dump (only with `debug_artifacts: true`): `<app root>/catalog_<Full.Type.Name>.json`
+Exploration dump (only with `dump_artifacts: true`): `<app root>/catalog_<Full.Type.Name>.json`
 (categories, parameters, presets) and the combined `category_catalog.json`.
+
+`debug_artifacts` (off by default) only adds verbose runtime log lines (`PARAM[EDIT]`/`PARAM[REFRESH]`);
+`dump_artifacts` (off by default) is the one that writes files (`ui_events.jsonl`, `param_trace.log`,
+`catalog_*.json`, `category_catalog.json`, `catalog_params.json`) — those are only needed when the
+editor build changes and the catalog has to be re-verified, not for normal work.
 
 **Command servers** (both processed on the main thread via the ticker
 `BepInEx AddComponent<VroidTicker>` + public `Update`, shared `CommandDispatcher`):
@@ -305,7 +310,7 @@ Screenshots are saved in variants: `screenshot.png` (canonical), `screenshot_raw
    - Conclusion: detect the fact of an edit on `Context.ExecuteSyncCommand` (the concrete command type) /
      `Context.SetBoneTransformParameter`; VM setters are suitable for single/color. The field
      `ui_events.jsonl.kind` (`edit`/`refresh`) distinguishes this; `param_trace.log` writes the stack
-     (both files — only with `debug_artifacts: true`).
+     (both files — only with `dump_artifacts: true`).
 5. **The Il2CppInterop proxy** returns the base/interface type in `GetType()`. The concrete type
    is obtained via the native class:
    `IL2CPP.il2cpp_object_get_class(ptr)` + `il2cpp_class_get_name/namespace` →
@@ -377,7 +382,7 @@ Unlike Face, presets here are not combinations of parameter values.
 
 The plugin maintains a registry of parametric VMs (hooks of concrete constructors of inheritors of
 `ParameterViewModelBase` / `MaterialParameterViewModelBase` / `ColorViewModelBase`) and
-(with `debug_artifacts: true`) dumps it to `<app root>/catalog_params.json`.
+(with `dump_artifacts: true`) dumps it to `<app root>/catalog_params.json`.
 
 ## 13. Settings dialog (Mux UI) and the Programmatic Control section
 

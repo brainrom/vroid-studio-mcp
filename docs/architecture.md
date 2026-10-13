@@ -35,7 +35,7 @@ plugin/VroidStudioMcp/
     Camera.cs               // AvatarCameraPosition + region and angle presets (frame)
     Screenshot.cs           // 3D-viewport RT (NormalLayerCamera), PNG, ShotHash
     Files.cs                // Open/Save/QuitClean + dirty flag/current model path
-    Catalog.cs              // catalog dumps (debug_artifacts)
+    Catalog.cs              // catalog dumps (dump_artifacts)
     MessagesI18n.cs         // overlay for engine string substitution + message table dump
     SettingsUi.cs           // injection of the MCP section into the standard settings dialog
     Icons.cs                // preset previews, texture conversion to PNG

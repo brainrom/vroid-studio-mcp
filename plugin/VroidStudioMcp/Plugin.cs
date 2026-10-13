@@ -70,10 +70,10 @@ public class Plugin : BasePlugin
         PatchAllByName("VRoidCore.Editing.Context", "LoadAndReplaceTransferableGroup", postfix);
         PatchAllByName("VRoid.Studio.ModelPresetsSelector.ClearOptionViewModel", "ClearTransferableGroup", postfix);
 
-        // Parameter registry (catalog_params.json) only. These ctor patches are pointless when debug
-        // artifacts are off, and each one logs an Il2CppInterop native-detour warning, so only do them
-        // for a debug run.
-        if (ServerSettings.DebugArtifacts)
+        // Parameter registry (catalog_params.json) only. These ctor patches are pointless without the
+        // dump artifacts, and each one logs an Il2CppInterop native-detour warning, so only do them
+        // when dump_artifacts is on.
+        if (ServerSettings.DumpArtifacts)
         {
             var ctorPost = new HarmonyMethod(typeof(Hooks).GetMethod(nameof(OnParamCtor), BindingFlags.Public | BindingFlags.Static));
             foreach (var t in new[]

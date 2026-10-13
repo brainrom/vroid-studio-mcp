@@ -86,7 +86,7 @@ public static class Hooks
     }
     public static void RecordEvent(string method, object instance, object[] args)
     {
-        if (!ServerSettings.DebugArtifacts) return;
+        if (!ServerSettings.DumpArtifacts) return;
         try
         {
             Dictionary<string, object> data = null;
@@ -308,8 +308,8 @@ public static class Hooks
     }
     public static void OnValuePre(object __instance, object[] __args, MethodBase __originalMethod)
     {
-        // Diagnostic-only (param_trace.log + REFRESH/EDIT log). It reflects on every value setter, so
-        // skip it entirely unless debug artifacts are on.
+        // Diagnostic-only (REFRESH/EDIT log + optional param_trace.log). It reflects on every value
+        // setter, so skip it entirely unless debug is on. The file trace is a dump artifact only.
         if (!ServerSettings.DebugArtifacts) return;
         try
         {
@@ -319,13 +319,16 @@ public static class Hooks
             var newv = SafeStr(First(__args));
             if (oldv == newv) return; // silent no-op (refresh or redundant edit)
             var shortType = (TypeName(__instance) ?? "?").Split('.').Last();
-            var kind = isRefresh ? "REFRESH" : "EDIT";
-            try
+            if (ServerSettings.DumpArtifacts)
             {
-                lock (_fileLock)
-                    File.AppendAllText(_tracePath, $"{kind}\td={_refreshDepth}\t{shortType}\t[{label}]\t{oldv}->{newv}\t{StackTop()}\n", Utf8);
+                var kind = isRefresh ? "REFRESH" : "EDIT";
+                try
+                {
+                    lock (_fileLock)
+                        File.AppendAllText(_tracePath, $"{kind}\td={_refreshDepth}\t{shortType}\t[{label}]\t{oldv}->{newv}\t{StackTop()}\n", Utf8);
+                }
+                catch { }
             }
-            catch { }
             if (isRefresh)
                 PluginLog.LogDebug($">>> PARAM[REFRESH] {shortType} [{label}] {oldv} -> {newv}");
             else

@@ -51,7 +51,7 @@ public static class Catalog
     /// <summary>Per-frame: dump selectors/params once and honor a requested full dump.</summary>
     public static void Tick()
     {
-        if (!ServerSettings.DebugArtifacts) return;
+        if (!ServerSettings.DumpArtifacts) return;
         if (_requested && (DateTime.UtcNow - _lastDump).TotalSeconds > 1.0)
         {
             _requested = false;
