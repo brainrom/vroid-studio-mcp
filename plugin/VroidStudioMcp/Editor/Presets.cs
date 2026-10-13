@@ -63,6 +63,81 @@ public static class Presets
         return list;
     }
 
+    /// <summary>One entry of the unified preset list: custom items first, then the stock presets
+    /// (Clear included). <c>Id</c> is the continuous 0-based position and is the value used by
+    /// select_preset / preset_preview_*.</summary>
+    public sealed class Entry
+    {
+        public int Id;
+        public string Kind;   // clear | preset | custom
+        public string Name;
+        public object Option;
+        public string ResourceName;
+        public string ItemId;
+        public string File;
+        public string CustomId;
+        public bool IsCustom => Kind == "custom";
+    }
+
+    /// <summary>Unified preset list of a tab. <paramref name="source"/>: all (default) | presets | custom.
+    /// Custom items come first (so clients notice the user's own presets), then the stock PresetOptions
+    /// (Clear at its usual position).</summary>
+    public static List<Entry> Entries(string selectorShort, string tab, string source)
+    {
+        var list = new List<Entry>();
+        var selector = Categories.FindSelectorByShort(selectorShort);
+        var category = Categories.FindTab(selector, tab);
+        if (category == null) return list;
+        var presetNode = Get(category, "PresetCategoryViewModel") ?? category;
+
+        source = string.IsNullOrEmpty(source) ? "all" : source.ToLowerInvariant();
+        bool wantCustom = source == "all" || source == "custom";
+        bool wantPreset = source == "all" || source == "presets";
+
+        if (wantCustom)
+        {
+            foreach (var o in Enumerate(Get(presetNode, "_customItems") ?? Get(presetNode, "CustomItemOptions")))
+            {
+                var t = TypeName(o) ?? "";
+                if (t.EndsWith("AddCustomItemOptionViewModel") || t.EndsWith("ImportCustomItemOptionViewModel")) continue;
+                var model = Get(o, "_model");
+                list.Add(new Entry
+                {
+                    Kind = "custom",
+                    Name = Get(o, "DisplayName") as string ?? TryGetLabel(o) ?? "(custom)",
+                    Option = o,
+                    File = Get(model, "FilePath") as string,
+                    CustomId = SafeStr(Get(model, "CustomItemId")),
+                });
+            }
+        }
+        if (wantPreset)
+        {
+            foreach (var o in Enumerate(Get(presetNode, "PresetOptions")))
+            {
+                var model = Get(o, "Model");
+                bool clear = (TypeName(o) ?? "").Contains("ClearOption");
+                list.Add(new Entry
+                {
+                    Kind = clear ? "clear" : "preset",
+                    Name = DisplayName(o),
+                    Option = o,
+                    ResourceName = Get(model, "resourceName") as string,
+                    ItemId = Get(model, "itemId") as string,
+                });
+            }
+        }
+        for (int i = 0; i < list.Count; i++) list[i].Id = i;
+        return list;
+    }
+
+    /// <summary>Find an entry by its continuous id (the value select_preset accepts).</summary>
+    public static Entry EntryAt(string selectorShort, string tab, int id)
+    {
+        var entries = Entries(selectorShort, tab, "all");
+        return id >= 0 && id < entries.Count ? entries[id] : null;
+    }
+
     public static object CustomItemAt(object presetCategoryNode, int index)
     {
         var items = Get(presetCategoryNode, "_customItems") ?? Get(presetCategoryNode, "CustomItemOptions");

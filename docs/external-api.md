@@ -164,16 +164,25 @@ union of `[min,max]` and the current value; the color echo is normalized to `#RR
   `NoseLighting`/`Eyelid`; it is returned once in `globals` as `Skin/Color`, `Skin/Dark Color`,
   `Skin/Light Color`, addressable from any of those tabs, with no per-group duplicates.
 
-Custom presets are out of scope; only the stock `Presets` group (`SelectedItemGroup=Preset`) is used.
+**Custom presets.** The user's saved items (the editor's Custom sub-tab) are part of the same preset
+list, not a separate entity: `presets` returns one continuous list where custom items come **first**
+(kind `custom`), then the stock presets (kind `preset`) and the Clear slot (kind `clear`). `id`
+(equal to `index`) is the continuous value used everywhere, so both kinds can be listed, previewed
+and selected through the same commands. Custom presets are global (saved on disk) and appear in every
+model.
 
 ## Actions
 
-- `select_preset(section, category, index, [params])` — by the index from `presets`. The Clear preset
-  is the one whose `name` is `"(clear)"`; without one, index 0 is the first real preset. The Clear
-  preset calls `ClearTransferableGroup()`. Returns the applied preset's `name` (label, else resource
-  id) or `"cleared"`; `resourceName` is never exposed. With `params=true` it returns an object
-  `{name, category, kind, has_clear_preset, parameters, item?}` (the same payload as `enter`), which
-  lets an Outfit client obtain the new item's sliders without a second `enter`.
+- `presets(section, category, [source])` → `[{id, index, name, kind}]` (`name`: label, else resource
+  id; Clear: `"(clear)"`, kind `clear`; custom items kind `custom`). `id == index` is the continuous
+  position. `source` (optional, default `all`) is a stateless filter: `all` (custom + stock),
+  `presets` (stock only), `custom` (custom only). The label machinery is internal.
+- `select_preset(section, category, id, [params])` — by the `id` from `presets` (custom and stock share
+  one id space). The Clear preset has kind `clear` (`ClearTransferableGroup()`). Returns the applied
+  preset's `name` (label, else resource id) or `"cleared"`; `resourceName` is never exposed. With
+  `params=true` it returns an object `{name, category, kind, has_clear_preset, parameters, item?}`
+  (the same payload as `enter`), which lets an Outfit client obtain the new item's sliders without a
+  second `enter`.
 - `set_param(...)` — the single setter for numeric/combined and color values; the global `path` from
   `enter` is preferred, `index` is short-lived.
 - `save [path]` — without a path, saves in place (`saved`); with a path, performs save-as
@@ -181,23 +190,22 @@ Custom presets are out of scope; only the stock `Presets` group (`SelectedItemGr
   confirmed by a signal rather than a fixed pause (save-as: the file appears; in-place: the dirty flag
   `IsUnSaved` clears); otherwise `{ok:false,error}`. After save-as the path is registered on the
   engine, so a later `save` without a path writes to the new file.
-- `presets(section, category)` → `[{index,name}]` (`name`: label, else resource id; Clear:
-  `"(clear)"`). The label machinery is internal.
 - `create <female|male>` — a new character from a built-in template (the same choice as the stock
   "Create New Model" dialog). Blocking, like `open`: on return the model is built and
   `state.ready=true`. Valid only from the start screen; with a model open it returns
   "first save/main_menu", forcing the caller to resolve pending changes explicitly (`save` →
   `main_menu`, or `main_menu` to discard). Returns `{gender, variant}`.
-- `preset_preview_list(section, category, indexes)` and
-  `preset_preview_range(section, category, start, count)` — visual selection of presets. The list
-  variant takes 1..12 explicit indexes; the range variant walks consecutive presets (`count` 1..12;
-  out-of-range is an error, not trimmed). Each result element carries `{index, name}` (the same
-  `name` as in `presets`), so no manual join is needed. In MCP the images arrive as inline image
-  blocks; `mode` controls writing `preset_<i>.png`. `b64` (range only) returns base64 PNG inline for
-  the VLM harness. Caveats: some Face overlays (lips/lashes/cheeks) render on a generic head rather
-  than the current model; clothing/hairstyle/eyes reflect the real preset. All previews carry the
-  editor's fixed light/self-shadowing (e.g. a pink shadow on the neck), which is not a parameter and
-  cannot be removed (the Look section is outside the API).
+- `preset_preview_list(section, category, ids)` and
+  `preset_preview_range(section, category, start, count)` — visual selection of presets by the same
+  continuous `id` (custom items included). The list variant takes 1..12 explicit ids; the range
+  variant walks consecutive ids (`count` 1..12; out-of-range is an error, not trimmed). Each result
+  element carries `{id, index, name, kind}` (the same as in `presets`), so no manual join is needed.
+  In MCP the images arrive as inline image blocks; `mode` controls writing `preset_<i>.png`. `b64`
+  (range only) returns base64 PNG inline for the VLM harness. Caveats: some Face overlays
+  (lips/lashes/cheeks) render on a generic head rather than the current model;
+  clothing/hairstyle/eyes reflect the real preset. All previews carry the editor's fixed
+  light/self-shadowing (e.g. a pink shadow on the neck), which is not a parameter and cannot be
+  removed (the Look section is outside the API).
 - `screenshot(mode)` — preview-only PNG. `inline` (MCP default) returns a base64 image without writing
   to disk; `file` writes `screenshot.png` (raw-protocol default); `both` does both. Requires an open
   model; `ui_screenshot` is the exception and works without one.

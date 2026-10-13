@@ -155,27 +155,28 @@ public static class PresetHandlers
 
     private static IEnumerator ListPresets(CommandDispatcher.Context ctx, bool full)
     {
-        var section = CommandUtil.ResolveSectionArg(ctx, 0, full ? "usage: presets_full <section> <tab>" : "usage: presets <section> <tab>"); var tab = CommandUtil.Arg(ctx, 1);
+        var section = CommandUtil.ResolveSectionArg(ctx, 0, full ? "usage: presets_full <section> <tab> [all|presets|custom]" : "usage: presets <section> <tab> [all|presets|custom]");
+        var tab = CommandUtil.Arg(ctx, 1);
         if (section == null) yield break;
-        if (tab == null) { ctx.Error = full ? "usage: presets_full <section> <tab>" : "usage: presets <section> <tab>"; yield break; }
+        if (tab == null) { ctx.Error = full ? "usage: presets_full <section> <tab> [all|presets|custom]" : "usage: presets <section> <tab> [all|presets|custom]"; yield break; }
+        var source = (CommandUtil.Arg(ctx, 2) ?? "all").ToLowerInvariant();
+        if (source != "all" && source != "presets" && source != "custom")
+        { ctx.Error = "source must be all|presets|custom"; yield break; }
         yield return CommandUtil.EnterSection(section);
         var selector = Categories.FindSelectorByShort(section + ".PresetsSelectorViewModel");
         var category = Categories.FindTab(selector, tab);
         if (category == null) { ctx.Error = $"no tab '{tab}'{CommandUtil.TabHint(section)}"; yield break; }
-        var presetNode = Get(category, "PresetCategoryViewModel");
-        var src = (object)presetNode ?? category;
+        // One continuous list: custom items first, then the stock presets (Clear included). `index`
+        // and `id` are the same continuous value used by select_preset / preset_preview_*.
+        var entries = Presets.Entries(section + ".PresetsSelectorViewModel", tab, source);
         var list = new List<object>();
-        var options = Enumerate(Get(src, "PresetOptions")).ToList();
-        for (int i = 0; i < options.Count; i++)
+        foreach (var e in entries)
         {
-            // One name per entry: the human label when known, otherwise the internal id, so the
-            // client never has to parse two shapes. Clear is spelled out (it is not a preset).
-            var entry = new Dictionary<string, object> { ["index"] = i, ["name"] = Presets.DisplayName(options[i]) };
+            var entry = new Dictionary<string, object> { ["index"] = e.Id, ["id"] = e.Id, ["name"] = e.Name, ["kind"] = e.Kind };
             if (full)
             {
-                var model = Get(options[i], "Model");
-                entry["resourceName"] = Get(model, "resourceName") as string;
-                entry["itemId"] = Get(model, "itemId") as string;
+                if (e.IsCustom) { entry["file"] = e.File; entry["customId"] = e.CustomId; }
+                else { entry["resourceName"] = e.ResourceName; entry["itemId"] = e.ItemId; }
             }
             list.Add(entry);
         }
@@ -184,9 +185,9 @@ public static class PresetHandlers
 
     public static IEnumerator Select(CommandDispatcher.Context ctx)
     {
-        var section = CommandUtil.ResolveSectionArg(ctx, 0, "usage: select_preset <section> <tab> <index> [params]"); var tab = CommandUtil.Arg(ctx, 1); var index = CommandUtil.Arg(ctx, 2);
+        var section = CommandUtil.ResolveSectionArg(ctx, 0, "usage: select_preset <section> <tab> <id> [params]"); var tab = CommandUtil.Arg(ctx, 1); var index = CommandUtil.Arg(ctx, 2);
         if (section == null) yield break;
-        if (tab == null || index == null) { ctx.Error = "usage: select_preset <section> <tab> <index> [params]"; yield break; }
+        if (tab == null || index == null) { ctx.Error = "usage: select_preset <section> <tab> <id> [params]"; yield break; }
         // Optional 4th arg `true`: return the parameter list alongside the resourceName. Mainly for
         // Outfit, where the applied item's sliders only exist after selection (saves a re-`enter`).
         bool withParams = string.Equals(CommandUtil.Arg(ctx, 3), "true", StringComparison.OrdinalIgnoreCase);
@@ -194,16 +195,14 @@ public static class PresetHandlers
         var category = CommandUtil.EnterCategory(section, tab);
         if (category == null) { ctx.Error = $"no tab '{tab}'{CommandUtil.TabHint(section)}"; yield break; }
         yield return CommandUtil.Pause(0.6f);
-        var presetNode = Get(category, "PresetCategoryViewModel");
-        var src = (object)presetNode ?? category;
-        var options = Enumerate(Get(src, "PresetOptions")).ToList();
-        if (!int.TryParse(index, out var i) || i < 0 || i >= options.Count) { ctx.Error = "index out of range"; yield break; }
+        if (!int.TryParse(index, out var i) || i < 0) { ctx.Error = "id must be a non-negative integer (from `presets`)"; yield break; }
+        var entry = Presets.EntryAt(section + ".PresetsSelectorViewModel", tab, i);
+        if (entry == null) { ctx.Error = $"id {i} out of range (from `presets`)"; yield break; }
         // Public result is the applied preset's display name, never the raw resourceName.
-        bool clear = (TypeName(options[i]) ?? "").Contains("ClearOption");
-        var applied = clear ? "cleared" : Presets.DisplayName(options[i]);
+        var applied = entry.Kind == "clear" ? "cleared" : entry.Name;
         Signals.Arm();
-        if (clear) Invoke(options[i], "ClearTransferableGroup");
-        else Invoke(options[i], "set_IsSelected", true);
+        if (entry.Kind == "clear") Invoke(entry.Option, "ClearTransferableGroup");
+        else Invoke(entry.Option, "set_IsSelected", true);
         yield return CommandUtil.Settle(1.5f);
         if (!withParams) { ctx.Result = applied; yield break; }
         // Selection may have rebuilt the tab VM tree: re-resolve it before reading parameters.
@@ -268,52 +267,70 @@ public static class PresetHandlers
         bool b64 = mode == "b64";
 
         yield return CommandUtil.EnterSection(section);
-        var selector = Categories.FindSelectorByShort(section + ".PresetsSelectorViewModel");
-        var category = Categories.FindTab(selector, tab);
+        var category = Categories.FindTab(Categories.FindSelectorByShort(section + ".PresetsSelectorViewModel"), tab);
         if (category == null) { ctx.Error = $"no tab '{tab}'{CommandUtil.TabHint(section)}"; yield break; }
-        var options = Icons.Options(section + ".PresetsSelectorViewModel", tab);
+        // Continuous ids: custom items first, then the stock presets (same list as `presets`).
+        var entries = Presets.Entries(section + ".PresetsSelectorViewModel", tab, "all");
 
         var wanted = new List<int>();
         foreach (var i in indices)
         {
-            if (i >= options.Count)
+            if (i >= entries.Count)
             {
-                if (strict) { ctx.Error = $"{cmd}: index {i} out of range"; yield break; }
+                if (strict) { ctx.Error = $"{cmd}: id {i} out of range"; yield break; }
                 continue;
             }
             wanted.Add(i);
         }
         if (strict && indices.Count > 0 && wanted.Count == 0)
-        { ctx.Error = $"{cmd}: no indexes in range"; yield break; }
+        { ctx.Error = $"{cmd}: no ids in range"; yield break; }
         yield return CommandUtil.Pause(0.4f);
 
         var items = new List<object>();
         Icons.BeginPreviews();
         foreach (var i in wanted)
         {
-            var option = options[i];
-            var resourceName = Get(Get(option, "Model"), "resourceName") as string;
-            var name = Presets.DisplayName(option);
-            if ((TypeName(option) ?? "").Contains("ClearOption") || string.IsNullOrEmpty(resourceName))
+            var e = entries[i];
+            var name = e.Name;
+            if (e.Kind == "clear")
             {
-                items.Add(new Dictionary<string, object> { ["index"] = i, ["name"] = name, ["ok"] = false, ["error"] = "no preview (clear)" });
+                items.Add(new Dictionary<string, object> { ["index"] = i, ["id"] = i, ["name"] = name, ["kind"] = e.Kind, ["ok"] = false, ["error"] = "no preview (clear)" });
                 continue;
             }
-            var png = Thumbnails.Get(resourceName);
-            if (png == null)
+
+            byte[] png = null;
+            if (e.IsCustom)
             {
-                // Fallback: the preset ViewModel pipeline (custom items / non-standard names).
-                Icons.Prepare(option);
-                object preview = null;
-                yield return CommandUtil.WaitUntil(() => { preview = Get(option, "Preview"); return preview != null; }, 6f);
-                if (preview != null)
+                // Custom presets carry their own thumbnail source (same ITextureSource pattern as the
+                // stock Preview fallback).
+                Icons.Prepare(e.Option);
+                object src = null;
+                yield return CommandUtil.WaitUntil(() => { src = Get(e.Option, "ThumbnailSource"); return src != null; }, 6f);
+                if (src != null)
                 {
-                    var task = Invoke(preview, "Create");
+                    var task = Invoke(src, "Create");
                     yield return CommandUtil.WaitUntil(() => Get(task, "IsCompleted") is bool b && b, 5f);
                     png = Icons.TextureToPng(Get(task, "Result"));
                 }
             }
-            if (png == null) { items.Add(new Dictionary<string, object> { ["index"] = i, ["name"] = name, ["ok"] = false, ["error"] = "preview not available" }); continue; }
+            else
+            {
+                png = Thumbnails.Get(e.ResourceName);
+                if (png == null)
+                {
+                    // Fallback: the preset ViewModel pipeline (non-standard resource names).
+                    Icons.Prepare(e.Option);
+                    object preview = null;
+                    yield return CommandUtil.WaitUntil(() => { preview = Get(e.Option, "Preview"); return preview != null; }, 6f);
+                    if (preview != null)
+                    {
+                        var task = Invoke(preview, "Create");
+                        yield return CommandUtil.WaitUntil(() => Get(task, "IsCompleted") is bool b && b, 5f);
+                        png = Icons.TextureToPng(Get(task, "Result"));
+                    }
+                }
+            }
+            if (png == null) { items.Add(new Dictionary<string, object> { ["index"] = i, ["id"] = i, ["name"] = name, ["kind"] = e.Kind, ["ok"] = false, ["error"] = "preview not available" }); continue; }
 
             Icons.AddPreview(new Icons.PreviewItem { Index = i, Name = name, Png = png });
             string file = null;
@@ -322,7 +339,7 @@ public static class PresetHandlers
                 file = $"preset_{i:D3}.png";
                 File.WriteAllBytes(Path.Combine(BepInEx.Paths.GameRootPath, file), png);
             }
-            var item = new Dictionary<string, object> { ["index"] = i, ["name"] = name, ["ok"] = true, ["file"] = file, ["bytes"] = png.Length };
+            var item = new Dictionary<string, object> { ["index"] = i, ["id"] = i, ["name"] = name, ["kind"] = e.Kind, ["ok"] = true, ["file"] = file, ["bytes"] = png.Length };
             if (b64) item["data"] = Convert.ToBase64String(png);
             items.Add(item);
         }

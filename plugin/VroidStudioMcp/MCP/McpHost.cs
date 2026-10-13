@@ -98,21 +98,26 @@ public static class McpHost
                 "describes the top.",
             ["presets"] =
                 "PRESETS\n" +
-                "- presets(section, category) -> [{index,name}] in display order. name is a human label when known, otherwise the " +
-                "internal id. The clear entry is named '(clear)'; its index is NOT fixed - rely on the name, not on position 0.\n" +
-                "- select_preset(section, category, index) blocks until applied and returns the applied preset's name or 'cleared'. Use the " +
-                "'(clear)' entry to clear; index 0 may be a real preset. With params=true it instead returns an object " +
+                "- presets(section, category, [source]) -> [{id,index,name,kind}] in display order, one continuous list. " +
+                "id == index is the value for select_preset/preset_preview_*; kind is 'custom' | 'preset' | 'clear'. Custom " +
+                "presets (the user's saved items) come first, then the stock presets; a category may have neither. source " +
+                "(default 'all', stateless) filters: 'presets' (stock only) or 'custom' (custom only). name is a human label " +
+                "when known, otherwise the internal id. The clear entry has kind 'clear'/name '(clear)'; its id is NOT fixed.\n" +
+                "- select_preset(section, category, id) blocks until applied and returns the applied preset's name or 'cleared'. Use the " +
+                "kind 'clear' entry to clear; id 0 may be a real preset or a custom item. With params=true it instead returns an object " +
                 "{name, category, kind, has_clear_preset, parameters, globals?, item?} - the same payload as enter - so Outfit can " +
                 "fetch the new item's sliders without a second call.\n" +
+                "- Custom presets are the user's own saved items (Custom sub-tab), applied exactly like a stock preset. They are " +
+                "global (saved on disk) and show up in every model.\n" +
                 "- has_clear_preset (in categories/enter): true means the tab has a Clear slot - selecting it " +
                 "removes the element entirely. When such a tab is currently empty, enter returns no parameters and " +
                 "needs_preset=true; after choosing any real preset the parameter set is identical for every preset. " +
                 "The flag does not imply needs_preset (a tab can have a Clear slot and still be populated). false means " +
                 "there is no Clear slot, so a preset is always applied and replaces all parameter values.\n" +
-                "- Previews: preset_preview_list / preset_preview_range render thumbnails; pick candidates by name first. Fidelity " +
-                "varies: outfit/hair/eye previews reflect the actual preset, but some face overlays (lips/lashes/cheeks) render on a " +
-                "generic template head, and every preview carries the editor's fixed lighting/self-shadow (e.g. a pink neck shading) " +
-                "that is NOT a parameter and cannot be removed.",
+                "- Previews: preset_preview_list / preset_preview_range render thumbnails by id (custom items included); pick " +
+                "candidates by name first. Fidelity varies: outfit/hair/eye previews reflect the actual preset, but some face " +
+                "overlays (lips/lashes/cheeks) render on a generic template head, and every preview carries the editor's fixed " +
+                "lighting/self-shadow (e.g. a pink neck shading) that is NOT a parameter and cannot be removed.",
             ["hair"] =
                 "HAIR\n" +
                 "- Overall hair colour is two global dials (Main / Highlight) shared by every Hairstyle tab except Base Hair. " +
@@ -860,11 +865,20 @@ public static class McpHost
               }),
 
             T("presets",
-              "List the presets of a category. Returns [{index,name}] in display order. 'name' is a human-readable " +
-              "label when known, otherwise the internal resource id; the empty/clear entry is named '(clear)'. " +
-              "Use 'index' with select_preset. Read-only.",
-              new[] { "section", "category" }, new[] { "section", "category" },
-              new() { ["section"] = EnumSchema("Section label.", sections), ["category"] = P("string", "Category/tab name from categories().") }),
+              "List the presets of a category as one continuous list. Returns [{id,index,name,kind}] " +
+              "in display order, where id == index is the value to pass to select_preset / " +
+              "preset_preview_*; kind is 'custom' | 'preset' | 'clear'. Custom presets (the user's saved " +
+              "items) come first, followed by the stock presets; a category may have neither. source " +
+              "(optional, default 'all') filters the result without changing any state: 'all' (custom + " +
+              "stock), 'presets' (stock only), 'custom' (custom only). 'name' is a human-readable label " +
+              "when known, otherwise the internal id; the empty/Clear slot is named '(clear)'. Read-only.",
+              new[] { "section", "category", "source" }, new[] { "section", "category" },
+              new()
+              {
+                  ["section"] = EnumSchema("Section label.", sections),
+                  ["category"] = P("string", "Category/tab name from categories()."),
+                  ["source"] = EnumSchema("Filter (stateless): all (default) | presets | custom.", "all", "presets", "custom"),
+              }),
 
             T("preset_preview_list",
               "Return preview thumbnails for a curated list of presets as inline images. Read presets() first " +
@@ -922,10 +936,9 @@ public static class McpHost
               }),
 
             T("select_preset",
-              "Select a preset by index (from presets). The clear/reset entry is the one named '(clear)' " +
-              "(its index is not fixed; in a tab without one, index 0 is the first real preset). " +
-              "Blocks until the change is applied. " +
-              "Returns the applied preset's name (the same 'name' as in presets; or 'cleared'). " +
+              "Select a preset by the id from presets() (custom and stock share one id space). The clear/reset " +
+              "entry is the one whose kind is 'clear'/name '(clear)' (its id is not fixed). Blocks until the " +
+              "change is applied. Returns the applied preset's name (the same 'name' as in presets; or 'cleared'). " +
               "Set params=true to instead return an object {name, category, kind, has_clear_preset, parameters, item?} " +
               "- the same payload as enter() - so the new parameter set is available immediately (useful for Outfit, where the " +
               "applied item's sliders change on every selection and would otherwise need a re-enter). " +
@@ -935,7 +948,7 @@ public static class McpHost
               {
                   ["section"] = EnumSchema("Section label.", sections),
                   ["category"] = P("string", "Category/tab name from categories()."),
-                  ["index"] = P("integer", "Preset index from presets(); the clear entry is named '(clear)'."),
+                  ["index"] = P("integer", "Preset id from presets() (custom and stock share one list); the clear entry has kind 'clear'."),
                   ["params"] = P("boolean", "When true, also return the refreshed parameter list (like enter()). Default false returns just the preset's name."),
               }),
 
