@@ -57,6 +57,7 @@ public static class CommandDispatcher
         "save", "categories", "enter", "presets", "presets_full", "select_preset",
         "set_param", "label_set", "preset_preview_list", "preset_preview_range",
         "camera", "screenshot",
+        "haircustom",
     };
 
     public static Task<CommandResult> Submit(string method, string[] args)
@@ -136,6 +137,7 @@ public static class CommandDispatcher
         ["renderprobe"] = RenderHandlers.Probe,
         ["rendermaasa"] = RenderHandlers.Msaa,
         ["renderscale"] = RenderHandlers.Scale,
+        ["haircustom"] = PresetHandlers.Custom,
         ["hook"] = DebugHandlers.Hook,
         ["unhook"] = DebugHandlers.Unhook,
         ["hooks"] = DebugHandlers.HooksList,

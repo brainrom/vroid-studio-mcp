@@ -11,6 +11,142 @@ namespace VroidStudioMcp;
 /// <summary>Preset listing, selection and thumbnail previews.</summary>
 public static class PresetHandlers
 {
+    // Dev command: custom items (saved user presets) of a category — the "Custom" sub-tab. They are
+    // not in the stock PresetOptions list, so they need their own list/select.
+    public static IEnumerator Custom(CommandDispatcher.Context ctx)
+    {
+        var action = (CommandUtil.Arg(ctx, 0) ?? "list").ToLowerInvariant();
+        if (action == "list")
+        {
+            var section = CommandUtil.ResolveSectionArg(ctx, 1, "usage: haircustom list <section> <tab>");
+            var tab = CommandUtil.Arg(ctx, 2);
+            if (section == null) yield break;
+            if (tab == null) { ctx.Error = "usage: haircustom list <section> <tab>"; yield break; }
+            yield return CommandUtil.EnterSection(section);
+            var category = Categories.FindTab(Categories.FindSelectorByShort(section + ".PresetsSelectorViewModel"), tab);
+            if (category == null) { ctx.Error = $"no tab '{tab}'{CommandUtil.TabHint(section)}"; yield break; }
+            var presetNode = Get(category, "PresetCategoryViewModel") ?? category;
+            ctx.Result = new Dictionary<string, object>
+            {
+                ["section"] = section,
+                ["category"] = tab,
+                ["custom_items"] = Presets.CustomItems(presetNode),
+            };
+            yield break;
+        }
+        if (action == "select")
+        {
+            var section = CommandUtil.ResolveSectionArg(ctx, 1, "usage: haircustom select <section> <tab> <index>");
+            var tab = CommandUtil.Arg(ctx, 2); var index = CommandUtil.Arg(ctx, 3);
+            if (section == null) yield break;
+            if (tab == null || index == null) { ctx.Error = "usage: haircustom select <section> <tab> <index>"; yield break; }
+            if (!int.TryParse(index, out var i) || i < 0) { ctx.Error = "haircustom select: index must be >= 0"; yield break; }
+            yield return CommandUtil.EnterSection(section);
+            var category = CommandUtil.EnterCategory(section, tab);
+            if (category == null) { ctx.Error = $"no tab '{tab}'{CommandUtil.TabHint(section)}"; yield break; }
+            yield return CommandUtil.Pause(0.6f);
+            var presetNode = Get(category, "PresetCategoryViewModel") ?? category;
+            var item = Presets.CustomItemAt(presetNode, i);
+            if (item == null) { ctx.Error = $"haircustom select: no custom item at index {i} (run `haircustom list`)"; yield break; }
+            var name = Get(item, "DisplayName") as string ?? TryGetLabel(item);
+            Signals.Arm();
+            Invoke(item, "set_IsSelected", true);
+            yield return CommandUtil.Settle(1.5f);
+            ctx.Result = new Dictionary<string, object> { ["index"] = i, ["name"] = name };
+            yield break;
+        }
+        if (action == "create")
+        {
+            var section = CommandUtil.ResolveSectionArg(ctx, 1, "usage: haircustom create <section> <tab>");
+            var tab = CommandUtil.Arg(ctx, 2);
+            if (section == null) yield break;
+            if (tab == null) { ctx.Error = "usage: haircustom create <section> <tab>"; yield break; }
+            yield return CommandUtil.EnterSection(section);
+            var category = Categories.FindTab(Categories.FindSelectorByShort(section + ".PresetsSelectorViewModel"), tab);
+            if (category == null) { ctx.Error = $"no tab '{tab}'{CommandUtil.TabHint(section)}"; yield break; }
+            var presetNode = Get(category, "PresetCategoryViewModel") ?? category;
+            var add = Presets.CustomItemOfKind(presetNode, "add");
+            if (add == null) { ctx.Error = "haircustom create: no 'Create New' tile in this category"; yield break; }
+            int before = Presets.CustomItemCount(presetNode);
+            Invoke(add, "AddItem");
+            yield return CommandUtil.WaitUntil(() =>
+            {
+                var node = Categories.FindTab(Categories.FindSelectorByShort(section + ".PresetsSelectorViewModel"), tab);
+                var pn = Get(node, "PresetCategoryViewModel") ?? node ?? presetNode;
+                return Presets.CustomItemCount(pn) > before;
+            }, 20f);
+            yield return CommandUtil.Pause(0.5f);
+            ctx.Result = new Dictionary<string, object>
+            {
+                ["created"] = Presets.CustomItemCount(presetNode) > before,
+                ["count"] = Presets.CustomItemCount(presetNode),
+                ["custom_items"] = Presets.CustomItems(presetNode),
+            };
+            yield break;
+        }
+
+        if (action == "rename")
+        {
+            var section = CommandUtil.ResolveSectionArg(ctx, 1, "usage: haircustom rename <section> <tab> <index> <name>");
+            var tab = CommandUtil.Arg(ctx, 2); var index = CommandUtil.Arg(ctx, 3); var name = CommandUtil.Arg(ctx, 4);
+            if (section == null) yield break;
+            if (tab == null || index == null || name == null) { ctx.Error = "usage: haircustom rename <section> <tab> <index> <name>"; yield break; }
+            if (!int.TryParse(index, out var i) || i < 0) { ctx.Error = "haircustom rename: index must be >= 0"; yield break; }
+            yield return CommandUtil.EnterSection(section);
+            var category = Categories.FindTab(Categories.FindSelectorByShort(section + ".PresetsSelectorViewModel"), tab);
+            if (category == null) { ctx.Error = $"no tab '{tab}'{CommandUtil.TabHint(section)}"; yield break; }
+            var presetNode = Get(category, "PresetCategoryViewModel") ?? category;
+            var item = Presets.CustomItemAt(presetNode, i);
+            if (item == null) { ctx.Error = $"haircustom rename: no item at index {i}"; yield break; }
+            if (!(TypeName(item) ?? "").EndsWith("CustomItemOptionViewModel")) { ctx.Error = "haircustom rename: index is not a custom item"; yield break; }
+            if (!Presets.RenameCustomItem(item, name, out var rerr)) { ctx.Error = rerr; yield break; }
+            yield return CommandUtil.Pause(0.5f);
+            ctx.Result = new Dictionary<string, object> { ["renamed"] = true, ["name"] = name, ["custom_items"] = Presets.CustomItems(presetNode) };
+            yield break;
+        }
+
+        if (action == "save" || action == "saveasnew")
+        {
+            var section = CommandUtil.ResolveSectionArg(ctx, 1, "usage: haircustom save <section> <tab> <index>");
+            var tab = CommandUtil.Arg(ctx, 2); var index = CommandUtil.Arg(ctx, 3);
+            if (section == null) yield break;
+            if (tab == null || index == null) { ctx.Error = "usage: haircustom save <section> <tab> <index>"; yield break; }
+            if (!int.TryParse(index, out var i) || i < 0) { ctx.Error = "haircustom save: index must be >= 0"; yield break; }
+            yield return CommandUtil.EnterSection(section);
+            var category = Categories.FindTab(Categories.FindSelectorByShort(section + ".PresetsSelectorViewModel"), tab);
+            if (category == null) { ctx.Error = $"no tab '{tab}'{CommandUtil.TabHint(section)}"; yield break; }
+            var presetNode = Get(category, "PresetCategoryViewModel") ?? category;
+            var item = Presets.CustomItemAt(presetNode, i);
+            if (item == null || !(TypeName(item) ?? "").EndsWith("CustomItemOptionViewModel"))
+            { ctx.Error = $"haircustom save: no custom item at index {i}"; yield break; }
+            // The design-editor close saves the item on the model "in place"; writing/refreshing the
+            // reusable *.vroidcustomitem preset is this separate button.
+            Invoke(item, action == "saveasnew" ? "SaveAsNewCustomItem" : "OverwriteCustomItem");
+            yield return CommandUtil.Pause(1.0f);
+            ctx.Result = new Dictionary<string, object> { ["saved"] = true, ["custom_items"] = Presets.CustomItems(presetNode) };
+            yield break;
+        }
+
+        if (action == "tab")
+        {
+            var section = CommandUtil.ResolveSectionArg(ctx, 1, "usage: haircustom tab <section> <tab> <presets|custom>");
+            var tab = CommandUtil.Arg(ctx, 2); var which = (CommandUtil.Arg(ctx, 3) ?? "custom").ToLowerInvariant();
+            if (section == null) yield break;
+            if (tab == null || (which != "custom" && which != "presets")) { ctx.Error = "usage: haircustom tab <section> <tab> <presets|custom>"; yield break; }
+            yield return CommandUtil.EnterSection(section);
+            var category = Categories.FindTab(Categories.FindSelectorByShort(section + ".PresetsSelectorViewModel"), tab);
+            if (category == null) { ctx.Error = $"no tab '{tab}'{CommandUtil.TabHint(section)}"; yield break; }
+            var presetNode = Get(category, "PresetCategoryViewModel") ?? category;
+            bool custom = which == "custom";
+            Invoke(presetNode, "set_IsShowCustomItem", custom);
+            Invoke(presetNode, "set_IsShowPreset", !custom);
+            yield return CommandUtil.Pause(0.3f);
+            ctx.Result = new Dictionary<string, object> { ["category"] = tab, ["tab"] = which };
+            yield break;
+        }
+        ctx.Error = "usage: haircustom [list <section> <tab> | select <section> <tab> <index> | create <section> <tab> | save|saveasnew <section> <tab> <index> | rename <section> <tab> <index> <name> | tab <section> <tab> <presets|custom>]";
+    }
+
     public static IEnumerator List(CommandDispatcher.Context ctx) => ListPresets(ctx, false);
 
     // Dev command (TCP only, not exposed over MCP): like `presets` but also returns the raw

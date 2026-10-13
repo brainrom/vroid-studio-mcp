@@ -29,7 +29,7 @@ plugin/VroidStudioMcp/
   Editor/                   // facade of the private API (the only layer that knows internal types)
     Sections.cs             // section switching (EditMode)
     Categories.cs           // tabs, search, counters
-    Presets.cs              // preset selection/reset, preset display name
+    Presets.cs              // preset selection/reset, preset display name, custom-item (Custom tab) list
     Parameters.cs           // ParamRef + assembly/serialization of category parameters and colors (enter payload)
     ParamCodec.cs           // color/numbers: Hex/TryParseColor/TryParseFinite/TryDbl/SafeNum
     Colors.cs               // color registry, universal setter
