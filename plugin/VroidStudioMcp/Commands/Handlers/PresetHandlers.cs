@@ -236,7 +236,14 @@ public static class PresetHandlers
         var list = new List<object>();
         foreach (var e in entries)
         {
-            var entry = new Dictionary<string, object> { ["index"] = e.Id, ["id"] = e.Id, ["name"] = e.Name, ["kind"] = e.Kind };
+            // The engine tracks the applied preset with PresetOptionViewModel.IsSelected (which
+            // UpdateIsSelected sets from the active transferable groups). The Clear slot carries no
+            // IsSelected, so its `selected` is null; a real preset is true when it is the applied one.
+            var entry = new Dictionary<string, object>
+            {
+                ["index"] = e.Id, ["id"] = e.Id, ["name"] = e.Name, ["kind"] = e.Kind,
+                ["selected"] = Get(e.Option, "IsSelected"),
+            };
             if (full)
             {
                 if (e.IsCustom) { entry["file"] = e.File; entry["customId"] = e.CustomId; }

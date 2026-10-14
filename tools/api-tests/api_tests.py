@@ -361,6 +361,13 @@ class Harness:
         gpaths = [p["path"] for p in data.get("globals", [])]
         self.check("globals.skin-separated", "Skin/Color" in gpaths and "Skin/Color" not in ppaths, gpaths)
 
+        # presets() reports the applied selection (read-only): each entry carries `selected`, and at
+        # most one real preset is marked; the clear slot carries null.
+        plist = json.loads(self.tool_ok("presets", {"section": "Face", "category": "Irises"}))
+        self.check("presets.selected-field", all("selected" in e for e in plist) and len(plist) > 1, f"{len(plist)} entries")
+        self.check("presets.selected-single", sum(1 for e in plist if e.get("selected") is True) <= 1,
+                   [e.get("name") for e in plist if e.get("selected") is True])
+
         # invalid set: error + screenshot unchanged (stable, so residual settling cannot fool it).
         # Enter the target category first: entering a category can itself change the preview
         # (edit-mode highlight), and set_param always re-enters it, so compare within one category.

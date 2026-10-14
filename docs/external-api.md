@@ -173,10 +173,12 @@ model.
 
 ## Actions
 
-- `presets(section, category, [source])` → `[{id, index, name, kind}]` (`name`: label, else resource
-  id; Clear: `"(clear)"`, kind `clear`; custom items kind `custom`). `id == index` is the continuous
-  position. `source` (optional, default `all`) is a stateless filter: `all` (custom + stock),
-  `presets` (stock only), `custom` (custom only). The label machinery is internal.
+- `presets(section, category, [source])` → `[{id, index, name, kind, selected}]` (`name`: label, else
+  resource id; Clear: `"(clear)"`, kind `clear`; custom items kind `custom`). `id == index` is the
+  continuous position. `source` (optional, default `all`) is a stateless filter: `all` (custom +
+  stock), `presets` (stock only), `custom` (custom only). `selected` (`true`/`false`, `null` on the
+  Clear slot) is the read-only applied-preset marker - the engine's `PresetOptionViewModel.IsSelected`.
+  The label machinery is internal.
 - `select_preset(section, category, id, [params])` — by the `id` from `presets` (custom and stock share
   one id space). The Clear preset has kind `clear` (`ClearTransferableGroup()`). Returns the applied
   preset's `name` (label, else resource id) or `"cleared"`; `resourceName` is never exposed. With
