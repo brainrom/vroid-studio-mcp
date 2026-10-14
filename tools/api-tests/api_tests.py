@@ -344,11 +344,11 @@ class Harness:
         h_g = self.stable_sha()
         self.check("color.screenshot-changed", h_r != h_g, f"{str(h_r)[:8]} vs {str(h_g)[:8]}")
 
-        # batch returns captured frames inline (apply -> camera -> capture in one call)
+        # batch returns captured frames inline (apply -> camera -> capture in one call); args are named
         status, doc = self.mcp_rpc("tools/call", {"name": "batch", "arguments": {"operations": [
-            {"method": "enter", "args": ["Face", "Irises", "keep"]},
-            {"method": "camera", "args": ["frame", "face"]},
-            {"method": "screenshot", "args": ["inline"]},
+            {"method": "enter", "arguments": {"section": "Face", "category": "Irises", "view": "keep"}},
+            {"method": "camera", "arguments": {"action": "frame", "region": "face"}},
+            {"method": "screenshot", "arguments": {"mode": "inline"}},
         ]}}, timeout=max(self.timeout, 60))
         content = doc["result"]["content"] if doc and "result" in doc else []
         imgs = [c for c in content if isinstance(c, dict) and c.get("type") == "image"]
@@ -548,11 +548,15 @@ class Harness:
             ("prev.range.count0", "preset_preview_range", {"section": "Face", "category": "Irises", "start": 1, "count": 0}, True),
             ("prev.range.count13", "preset_preview_range", {"section": "Face", "category": "Irises", "start": 1, "count": 13}, True),
             ("prev.range.oob", "preset_preview_range", {"section": "Face", "category": "Irises", "start": 99999}, True),
-            # batch: malformed top-level shape is a tool error; per-op failures surface element-wise
+            # batch: malformed top-level shape is a tool error; per-op failures surface element-wise.
+            # Operations take NAMED arguments only; batch itself stays ok (isError=false) either way.
             ("batch.noops", "batch", {}, True),
             ("batch.ops-object", "batch", {"operations": {"method": "state"}}, True),
-            ("batch.nested", "batch", {"operations": [{"method": "batch", "args": []}]}, False),
-            ("batch.unknown", "batch", {"operations": [{"method": "nope", "args": []}]}, False),
+            ("batch.nested", "batch", {"operations": [{"method": "batch"}]}, False),
+            ("batch.unknown", "batch", {"operations": [{"method": "nope"}]}, False),
+            ("batch.positional", "batch", {"operations": [{"method": "enter", "arguments": ["Face", "Irises"]}]}, False),
+            ("batch.unknown-arg", "batch", {"operations": [{"method": "enter", "arguments": {"section": "Face", "category": "Irises", "bogus": 1}}]}, False),
+            ("batch.missing-required", "batch", {"operations": [{"method": "enter", "arguments": {"section": "Face"}}]}, False),
             # read-only tools: extra/odd arguments must be tolerated, not error
             ("state.extra", "state", {"x": 1}, False),
             ("sections.extra", "sections", {"x": 1}, False),
@@ -566,14 +570,22 @@ class Harness:
             if not ok:
                 alive_fail.append(f"{name}: {detail}")
         self.check("misuse.alive-after-each-case", not alive_fail, "; ".join(alive_fail[:3]))
-        # batch reports per-op failures element-wise (the tool call itself is ok)
-        for nm, ops, sub in (("batch.nested", [{"method": "batch", "args": []}], "cannot nest batch"),
-                             ("batch.unknown", [{"method": "nope", "args": []}], "unknown method")):
+        # batch reports per-op failures element-wise (the tool call itself is ok) with an actionable message
+        for nm, ops, sub in (
+                ("batch.nested", [{"method": "batch"}], "cannot nest batch"),
+                ("batch.unknown", [{"method": "nope"}], "unknown method"),
+                ("batch.positional", [{"method": "enter", "arguments": ["Face", "Irises"]}], "positional args are not supported"),
+                ("batch.unknown-arg", [{"method": "enter", "arguments": {"section": "Face", "category": "Irises", "bogus": 1}}], "unknown argument"),
+                ("batch.missing-required", [{"method": "enter", "arguments": {"section": "Face"}}], "missing required argument")):
             try:
                 err, text = self.tool_text("batch", {"operations": ops})
-                self.check(f"misuse.{nm}.element", (not err) and sub in (text or ""), (text or "")[:90])
+                self.check(f"misuse.{nm}.element", (not err) and sub in (text or ""), (text or "")[:110])
             except Exception as e:
                 self.check(f"misuse.{nm}.element", False, repr(e)[:100])
+        # the new named-argument form works in a batch (category passed by name, not position)
+        err, text = self.tool_text("batch", {"operations": [
+            {"method": "enter", "arguments": {"section": "Face", "category": "Irises", "view": "keep"}}]})
+        self.check("misuse.batch.named-ok", (not err) and '"ok":true' in (text or "").replace(" ", ""), (text or "")[:110])
         self.tcp_line("main_menu")
 
     SUITES = {

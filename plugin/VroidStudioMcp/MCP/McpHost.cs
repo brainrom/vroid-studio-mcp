@@ -70,7 +70,8 @@ public static class McpHost
         "TOOLS: state, status, sections, open, create, categories, enter, presets, preset_preview_list, preset_preview_range, select_preset, " +
         "create_custom_preset, set_param, camera, screenshot, save, main_menu, exit, batch, help. " +
         "Use batch for several ordered operations + captures in one call (it returns captured frames inline and accepts any " +
-        "tool name, including help). status is answered without the main-thread queue, so it works while a command or batch runs. " +
+        "tool name, including help; each op takes named `arguments`, the same keys as tools/call). status is answered without " +
+        "the main-thread queue, so it works while a command or batch runs. " +
         "(ui_screenshot is a dev-only tool, disabled when dev_tools=false in the servers config.)\n";
 
     // Deep reference for help(topic). Kept out of the always-loaded instructions and tool blurbs.
@@ -395,45 +396,166 @@ public static class McpHost
             if (rawArgs.ValueKind == JsonValueKind.Object) a = rawArgs;
         }
         var args = a;
-        if (name == null || !Tools.TryGetValue(name, out var tool))
+        if (name == null || !Tools.ContainsKey(name))
             return Content($"unknown tool '{name}'", true);
-        if (name == "ui_screenshot" && !ServerSettings.DevTools)
-            return Content("ui_screenshot is disabled (dev_tools=false in the servers config)", true);
 
+        // MCP-only tools have no TCP core counterpart and are answered here.
         if (name == "batch") return CallBatch(args);
         if (name == "help") return CallHelp(args);
         if (name == "status") return CallStatus();
-        if (name == "camera") return CallCamera(args);
-        if (name == "screenshot") return CallScreenshot(args);
-        if (name == "ui_screenshot") return CallUiScreenshot(args);
-        if (name == "preset_preview_list") return CallPresetPreviewList(args);
-        if (name == "preset_preview_range") return CallPresetPreviewRange(args);
 
-        var positional = new List<string>();
+        if (!TryBuildCall(name, args, false, out var method, out var list, out var error))
+            return Content(error, true);
+        var result = CommandDispatcher.Submit(method, list.ToArray()).GetAwaiter().GetResult();
+        if (!result.Ok) return Content(result.Error, true);
+
+        // Image-returning tools rebuild their MCP content block after the engine call.
+        if (name == "screenshot") return ScreenshotContent(ArgAt(list, 0) ?? "inline");
+        if (name == "ui_screenshot") return UiScreenshotContent(ArgAt(list, 0) ?? "inline");
+        if (name == "preset_preview_list" || name == "preset_preview_range")
+            return PreviewContent(result, ArgAt(list, name == "preset_preview_list" ? 3 : 4) ?? "inline");
+        return Content(result.Result == null ? "ok" : MiniJson.Serialize(result.Result, false), false);
+    }
+
+    private static string ArgAt(List<string> list, int i) =>
+        list != null && i >= 0 && i < list.Count && !string.IsNullOrEmpty(list[i]) ? list[i] : null;
+
+    // Named arguments (object) -> the positional form of the command core. Missing required arguments
+    // are always an error; unknown keys are an error only in the strict (batch) mode - a direct
+    // tools/call keeps tolerating extra/odd arguments (the long-standing read-only contract).
+    private static List<string> PositionalArgs(Tool tool, JsonElement args, bool strict, out string error)
+    {
+        error = null;
+        if (args.ValueKind == JsonValueKind.Undefined) args = default;
+        if (args.ValueKind != JsonValueKind.Object)
+        { error = $"{tool.Name}: arguments must be an object of named arguments"; return null; }
+        if (strict)
+            foreach (var prop in args.EnumerateObject())
+                if (!tool.Order.Contains(prop.Name))
+                { error = $"{tool.Name}: unknown argument '{prop.Name}' (expected: {string.Join(", ", tool.Order)})"; return null; }
+        foreach (var req in tool.Required)
+            if (!args.TryGetProperty(req, out var rv) || rv.ValueKind == JsonValueKind.Null)
+            { error = $"{tool.Name}: missing required argument '{req}' (expected: {string.Join(", ", tool.Order)})"; return null; }
+        var list = new List<string>();
         foreach (var key in tool.Order)
         {
-            if (args.ValueKind == JsonValueKind.Object && args.TryGetProperty(key, out var v) && v.ValueKind != JsonValueKind.Null)
-                positional.Add(Scalar(v));
-            else positional.Add(null);
+            if (args.TryGetProperty(key, out var v) && v.ValueKind != JsonValueKind.Null) list.Add(Scalar(v));
+            else list.Add(null);
         }
+        return list;
+    }
 
-        var result = CommandDispatcher.Submit(name, positional.ToArray()).GetAwaiter().GetResult();
-        if (!result.Ok) return Content(result.Error, true);
-        return Content(result.Result == null ? "ok" : MiniJson.Serialize(result.Result, false), false);
+    // Resolve a tool call to (method, positional args) - shared by tools/call and batch, so both accept
+    // the same named arguments and validate them identically. A few tools have a positional shape that
+    // is not their schema (camera, screenshot, previews) and are built here.
+    private static bool TryBuildCall(string name, JsonElement args, bool strict, out string method, out List<string> list, out string error)
+    {
+        method = null; list = null; error = null;
+        if (!Tools.TryGetValue(name, out var tool)) { error = $"unknown tool '{name}'"; return false; }
+        if (name == "ui_screenshot" && !ServerSettings.DevTools)
+        { error = "ui_screenshot is disabled (dev_tools=false in the servers config)"; return false; }
+        switch (name)
+        {
+            case "camera": return BuildCamera(args, out method, out list, out error);
+            case "screenshot": return BuildScreenshot(args, out method, out list, out error);
+            case "ui_screenshot": return BuildUiScreenshot(args, out method, out list, out error);
+            case "preset_preview_list": return BuildPreviewList(args, out method, out list, out error);
+            case "preset_preview_range": return BuildPreviewRange(args, out method, out list, out error);
+            default:
+                list = PositionalArgs(tool, args, strict, out error);
+                if (list == null) return false;
+                method = name;
+                return true;
+        }
+    }
+
+    private static string Val(JsonElement args, string key) =>
+        args.ValueKind == JsonValueKind.Object && args.TryGetProperty(key, out var v) && v.ValueKind != JsonValueKind.Null ? Scalar(v) : null;
+
+    private static bool BuildCamera(JsonElement args, out string method, out List<string> list, out string error)
+    {
+        method = "camera"; list = null; error = null;
+        var action = Val(args, "action");
+        if (string.IsNullOrEmpty(action))
+        { error = "camera: 'action' is required (reset|frame|angles|zoom|pan|rotate|projection|view|probe)"; return false; }
+        list = new List<string> { action };
+        switch (action)
+        {
+            // frame takes a region and an optional angle; `region` is the canonical key, `preset` is
+            // accepted as a legacy alias.
+            case "frame":
+                list.Add(Val(args, "region") ?? Val(args, "preset") ?? "body");
+                var angle = Val(args, "angle");
+                if (!string.IsNullOrEmpty(angle)) list.Add(angle);
+                break;
+            case "angles":
+            case "pan":
+            case "view": list.Add(Val(args, "x")); list.Add(Val(args, "y")); break;
+            case "zoom":
+            case "rotate": list.Add(Val(args, "value")); break;
+        }
+        return true;
+    }
+
+    private static bool BuildScreenshot(JsonElement args, out string method, out List<string> list, out string error)
+    {
+        method = "screenshot"; error = null;
+        list = new List<string> { Val(args, "mode") ?? "inline", Val(args, "view") };
+        return true;
+    }
+
+    private static bool BuildUiScreenshot(JsonElement args, out string method, out List<string> list, out string error)
+    {
+        method = "uiscreenshot"; error = null;
+        list = new List<string> { Val(args, "mode") ?? "inline" };
+        return true;
+    }
+
+    // Preset thumbnails as inline images (presets have no human-readable names). `indexes` is a
+    // curated list chosen from presets(); the range form renders a consecutive run.
+    private static bool BuildPreviewList(JsonElement args, out string method, out List<string> list, out string error)
+    {
+        method = "preset_preview_list"; list = null; error = null;
+        var section = Val(args, "section");
+        var category = Val(args, "category");
+        if (string.IsNullOrEmpty(section) || string.IsNullOrEmpty(category))
+        { error = "preset_preview_list: 'section' and 'category' are required"; return false; }
+        if (args.ValueKind != JsonValueKind.Object || !args.TryGetProperty("indexes", out var idx) || idx.ValueKind == JsonValueKind.Null)
+        { error = "preset_preview_list: 'indexes' (array of preset indexes) is required"; return false; }
+
+        var parts = new List<string>();
+        if (idx.ValueKind == JsonValueKind.Array)
+            foreach (var e in idx.EnumerateArray()) parts.Add(Scalar(e));
+        else if (idx.ValueKind == JsonValueKind.String)
+            parts.Add(idx.GetString());
+        else { error = "preset_preview_list: 'indexes' must be an array of integers"; return false; }
+        if (parts.Count == 0) { error = "preset_preview_list: 'indexes' is empty"; return false; }
+
+        var mode = Val(args, "mode") ?? "inline";
+        list = new List<string> { section, category, string.Join(",", parts), mode };
+        return true;
+    }
+
+    private static bool BuildPreviewRange(JsonElement args, out string method, out List<string> list, out string error)
+    {
+        method = "preset_preview_range"; list = null; error = null;
+        var section = Val(args, "section");
+        var category = Val(args, "category");
+        if (string.IsNullOrEmpty(section) || string.IsNullOrEmpty(category))
+        { error = "preset_preview_range: 'section' and 'category' are required"; return false; }
+        list = new List<string> { section, category, Val(args, "start") ?? "0", Val(args, "count") ?? "1", Val(args, "mode") ?? "inline" };
+        return true;
     }
 
     // help(topic) -> deep reference. No topic (or an unknown one) returns the topic index, without
     // erroring, so a caller can recover and pick a topic.
-    private static object CallHelp(JsonElement args)
-    {
-        var topic = args.ValueKind == JsonValueKind.Object && args.TryGetProperty("topic", out var t) && t.ValueKind != JsonValueKind.Null
-            ? Scalar(t) : null;
-        return Content(HelpText(topic), false);
-    }
+    private static object CallHelp(JsonElement args) => Content(HelpText(Val(args, "topic")), false);
 
     // status -> liveness/progress WITHOUT the main-thread queue (safe to call while a mutation is
     // running, unlike state/commands). Lets a client tell whether a timed-out batch is still working.
-    private static object CallStatus()
+    private static object CallStatus() => Content(MiniJson.Serialize(StatusDictionary(), false), false);
+
+    private static Dictionary<string, object> StatusDictionary()
     {
         var d = new Dictionary<string, object>();
         if (CommandDispatcher.TryGetInFlight(out var method, out var secs) && secs > 3)
@@ -445,10 +567,10 @@ public static class McpHost
         var total = _batchTotal;
         if (total > 0)
             d["batch"] = new Dictionary<string, object> { ["index"] = _batchIndex, ["total"] = total, ["method"] = _batchMethod };
-        return Content(MiniJson.Serialize(d, false), false);
+        return d;
     }
 
-    // Shared by the help tool and by batch (help has no TCP command, so batch routes it here).
+    // Shared by the help tool and by batch (help has no TCP command).
     private static string HelpText(string topic)
     {
         if (string.IsNullOrEmpty(topic))
@@ -467,41 +589,10 @@ public static class McpHost
         return $"unknown help topic '{topic}'. topics: " + string.Join(", ", HelpTopics.Keys);
     }
 
-    private static object CallCamera(JsonElement args)
-    {
-        string Val(string key) => args.ValueKind == JsonValueKind.Object && args.TryGetProperty(key, out var v) && v.ValueKind != JsonValueKind.Null ? Scalar(v) : null;
-        var action = Val("action");
-        if (string.IsNullOrEmpty(action)) return Content("camera: 'action' is required (reset|frame|angles|zoom|pan|rotate|projection|view|probe)", true);
-
-        var list = new List<string> { action };
-        switch (action)
-        {
-            // frame takes a region and an optional angle; `region` is the canonical key, `preset` is
-            // accepted as a legacy alias.
-            case "frame":
-                list.Add(Val("region") ?? Val("preset") ?? "body");
-                var angle = Val("angle");
-                if (!string.IsNullOrEmpty(angle)) list.Add(angle);
-                break;
-            case "angles":
-            case "pan":
-            case "view": list.Add(Val("x")); list.Add(Val("y")); break;
-            case "zoom":
-            case "rotate": list.Add(Val("value")); break;
-        }
-        var result = CommandDispatcher.Submit("camera", list.ToArray()).GetAwaiter().GetResult();
-        if (!result.Ok) return Content(result.Error, true);
-        return Content(result.Result == null ? "ok" : MiniJson.Serialize(result.Result, false), false);
-    }
-
     // mode=inline returns the preview as an MCP image block (no file); file writes screenshot.png
     // only; both does both. Default is inline, since a visual check rarely needs a file.
-    private static object CallScreenshot(JsonElement args)
+    private static object ScreenshotContent(string mode)
     {
-        var mode = args.ValueKind == JsonValueKind.Object && args.TryGetProperty("mode", out var m) && m.ValueKind != JsonValueKind.Null ? Scalar(m) : "inline";
-        var result = CommandDispatcher.Submit("screenshot", new[] { mode }).GetAwaiter().GetResult();
-        if (!result.Ok) return Content(result.Error, true);
-
         bool wantImage = mode == "inline" || mode == "both";
         var png = wantImage ? Screenshot.LastCanonicalPng : null;
         var content = new List<object>();
@@ -518,60 +609,15 @@ public static class McpHost
     private static int PngHeight(byte[] b) => b.Length > 24 ? (b[20] << 24) | (b[21] << 16) | (b[22] << 8) | b[23] : 0;
 
     // Full window including UI (via ScreenCapture); runs on the main thread through the dispatcher.
-    private static object CallUiScreenshot(JsonElement args)
+    private static object UiScreenshotContent(string mode)
     {
-        var mode = args.ValueKind == JsonValueKind.Object && args.TryGetProperty("mode", out var m) && m.ValueKind != JsonValueKind.Null ? Scalar(m) : "inline";
-        bool write = mode == "file" || mode == "both";
-        var result = CommandDispatcher.Submit("uiscreenshot", new[] { write ? "both" : "inline" }).GetAwaiter().GetResult();
-        if (!result.Ok) return Content(result.Error, true);
-
         var png = Screenshot.LastUiPng;
         if (png == null || png.Length == 0) return Content("ui_screenshot captured but no image data", true);
         var content = new List<object>();
-        content.Add(new Dictionary<string, object> { ["type"] = "text", ["text"] = $"{PngWidth(png)}x{PngHeight(png)}, {png.Length} bytes" + (write ? " (ui_screenshot.png)" : "") });
+        content.Add(new Dictionary<string, object> { ["type"] = "text", ["text"] = $"{PngWidth(png)}x{PngHeight(png)}, {png.Length} bytes" + (mode == "file" || mode == "both" ? " (ui_screenshot.png)" : "") });
         if (mode != "file")
             content.Add(new Dictionary<string, object> { ["type"] = "image", ["data"] = Convert.ToBase64String(png), ["mimeType"] = "image/png" });
         return new Dictionary<string, object> { ["content"] = content, ["isError"] = false };
-    }
-
-    // Preset thumbnails as inline images (presets have no human-readable names). `indexes` is a
-    // curated list chosen from presets(); the range form renders a consecutive run.
-    private static object CallPresetPreviewList(JsonElement args)
-    {
-        string Val(string key) => args.ValueKind == JsonValueKind.Object && args.TryGetProperty(key, out var v) && v.ValueKind != JsonValueKind.Null ? Scalar(v) : null;
-        var section = Val("section");
-        var category = Val("category");
-        if (string.IsNullOrEmpty(section) || string.IsNullOrEmpty(category))
-            return Content("preset_preview_list: 'section' and 'category' are required", true);
-        if (args.ValueKind != JsonValueKind.Object || !args.TryGetProperty("indexes", out var idx) || idx.ValueKind == JsonValueKind.Null)
-            return Content("preset_preview_list: 'indexes' (array of preset indexes) is required", true);
-
-        var parts = new List<string>();
-        if (idx.ValueKind == JsonValueKind.Array)
-            foreach (var e in idx.EnumerateArray()) parts.Add(Scalar(e));
-        else if (idx.ValueKind == JsonValueKind.String)
-            parts.Add(idx.GetString());
-        else return Content("preset_preview_list: 'indexes' must be an array of integers", true);
-        if (parts.Count == 0) return Content("preset_preview_list: 'indexes' is empty", true);
-
-        var list = string.Join(",", parts);
-        var mode = Val("mode") ?? "inline";
-        var result = CommandDispatcher.Submit("preset_preview_list", new[] { section, category, list, mode }).GetAwaiter().GetResult();
-        return PreviewContent(result, mode);
-    }
-
-    private static object CallPresetPreviewRange(JsonElement args)
-    {
-        string Val(string key) => args.ValueKind == JsonValueKind.Object && args.TryGetProperty(key, out var v) && v.ValueKind != JsonValueKind.Null ? Scalar(v) : null;
-        var section = Val("section");
-        var category = Val("category");
-        if (string.IsNullOrEmpty(section) || string.IsNullOrEmpty(category))
-            return Content("preset_preview_range: 'section' and 'category' are required", true);
-        var start = Val("start") ?? "0";
-        var count = Val("count") ?? "1";
-        var mode = Val("mode") ?? "inline";
-        var result = CommandDispatcher.Submit("preset_preview_range", new[] { section, category, start, count, mode }).GetAwaiter().GetResult();
-        return PreviewContent(result, mode);
     }
 
     private static object PreviewContent(CommandResult result, string mode)
@@ -590,10 +636,13 @@ public static class McpHost
         return new Dictionary<string, object> { ["content"] = content, ["isError"] = false };
     }
 
+
+    // Batch operations take NAMED arguments only (`arguments` object, or an `args` object alias); a JSON
+    // array is rejected with a clear error, so the old positional guessing cannot silently mis-apply.
     private static object CallBatch(JsonElement args)
     {
         if (args.ValueKind != JsonValueKind.Object || !args.TryGetProperty("operations", out var ops) || ops.ValueKind != JsonValueKind.Array)
-            return Content("batch: 'operations' must be an array of {method, args}", true);
+            return Content("batch: 'operations' must be an array of {method, arguments}", true);
 
         int total = ops.GetArrayLength();
         if (ServerSettings.MaxBatchOps > 0 && total > ServerSettings.MaxBatchOps)
@@ -612,46 +661,34 @@ public static class McpHost
             foreach (var op in ops.EnumerateArray())
             {
                 index++;
-                var method = op.ValueKind == JsonValueKind.Object && op.TryGetProperty("method", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString() : null;
+                string method = op.ValueKind == JsonValueKind.Object && op.TryGetProperty("method", out var m) && m.ValueKind == JsonValueKind.String ? m.GetString() : null;
                 _batchIndex = index + 1;
                 _batchMethod = method;
-                var list = new List<string>();
-                if (op.ValueKind == JsonValueKind.Object && op.TryGetProperty("args", out var a) && a.ValueKind == JsonValueKind.Array)
-                    foreach (var x in a.EnumerateArray())
-                        // Array-valued arguments (e.g. preset_preview_list indexes) are passed to the
-                        // command core in its native comma-separated string form.
-                        list.Add(x.ValueKind == JsonValueKind.Array
-                            ? string.Join(",", x.EnumerateArray().Select(Scalar))
-                            : Scalar(x));
-                // Tolerate an argv-style list that repeats the method name as the first element
-                // (e.g. {"method":"camera","args":["camera","angles",...]}); the canonical form omits it.
-                if (list.Count > 0 && string.Equals(list[0], method, StringComparison.OrdinalIgnoreCase)) list.RemoveAt(0);
-                if (method == "ui_screenshot" && !ServerSettings.DevTools)
-                {
-                    results.Add(new Dictionary<string, object> { ["ok"] = false, ["error"] = "ui_screenshot is disabled (dev_tools=false in the servers config)" });
-                    continue;
-                }
-                if (method == "batch")
-                {
-                    results.Add(new Dictionary<string, object> { ["ok"] = false, ["error"] = "batch: cannot nest batch" });
-                    continue;
-                }
-                // MCP-only tools have no TCP core counterpart; route them through the MCP layer so a batch
-                // accepts any tool name (help is the current example).
+
+                if (method == null)
+                { results.Add(OpError("batch: each operation needs a string 'method'")); continue; }
+
+                // `arguments` (preferred, MCP idiom) or an `args` object alias; positional arrays are refused.
+                JsonElement a = default;
+                bool hasArgs = false;
+                if (op.TryGetProperty("arguments", out var ag) && ag.ValueKind != JsonValueKind.Null) { a = ag; hasArgs = true; }
+                else if (op.TryGetProperty("args", out var ag2) && ag2.ValueKind != JsonValueKind.Null) { a = ag2; hasArgs = true; }
+                if (hasArgs && a.ValueKind != JsonValueKind.Object)
+                { results.Add(OpError($"batch: '{method}' arguments must be an object of named arguments; positional args are not supported")); continue; }
+
+                if (method == "batch") { results.Add(OpError("batch: cannot nest batch")); continue; }
+                if (method == "ping") { results.Add(OkResult("pong")); continue; }
                 if (method == "help")
-                {
-                    results.Add(new Dictionary<string, object> { ["ok"] = true, ["result"] = HelpText(list.Count > 0 ? list[0] : null) });
-                    continue;
-                }
-                // The MCP tool name `ui_screenshot` maps to the core command `uiscreenshot`.
-                var submit = method == "ui_screenshot" ? "uiscreenshot" : method;
-                // Match the MCP screenshot tool default (inline) so a modeless batch `screenshot`
-                // returns the frame instead of silently writing screenshot.png.
-                if (submit == "screenshot" && list.Count == 0) list.Add("inline");
-                var result = CommandDispatcher.Submit(submit, list.ToArray()).GetAwaiter().GetResult();
-                results.Add(result.Ok
-                    ? new Dictionary<string, object> { ["ok"] = true, ["result"] = result.Result }
-                    : new Dictionary<string, object> { ["ok"] = false, ["error"] = result.Error });
+                { results.Add(OkResult(HelpText(Val(a, "topic")))); continue; }
+                if (method == "status")
+                { results.Add(OkResult(StatusDictionary())); continue; }
+                if (!Tools.ContainsKey(method))
+                { results.Add(OpError($"unknown method '{method}'")); continue; }
+
+                if (!TryBuildCall(method, a, true, out var buildMethod, out var list, out var berr))
+                { results.Add(OpError(berr)); continue; }
+                var result = CommandDispatcher.Submit(buildMethod, list.ToArray()).GetAwaiter().GetResult();
+                results.Add(result.Ok ? OkResult(result.Result) : OpError(result.Error));
                 if (result.Ok) CollectBatchImages(method, list, index, images, ref imageBytes);
             }
         }
@@ -670,6 +707,12 @@ public static class McpHost
         }
         return new Dictionary<string, object> { ["content"] = content, ["isError"] = false };
     }
+
+    private static Dictionary<string, object> OkResult(object result) =>
+        new() { ["ok"] = true, ["result"] = result };
+
+    private static Dictionary<string, object> OpError(string message) =>
+        new() { ["ok"] = false, ["error"] = message };
 
     // Capture inline images produced by image-returning ops in a batch, honouring an explicit mode.
     private static void CollectBatchImages(string method, List<string> args, int opIndex, List<(int op, string label, byte[] png)> images, ref long bytes)
@@ -710,7 +753,6 @@ public static class McpHost
         images.Add((op, label, png));
         bytes += png.Length;
     }
-
     private static object Content(string text, bool isError) => new Dictionary<string, object>
     {
         ["content"] = new List<object> { new Dictionary<string, object> { ["type"] = "text", ["text"] = text } },
@@ -1084,10 +1126,13 @@ public static class McpHost
               new() { ["mode"] = EnumSchema("Whether to save before quitting.", "save", "discard") }),
 
             T("batch",
-              "Run several operations sequentially in one call. operations: [{method, args:[...]}] where method " +
-              "is any tool name (including help) and args is its positional argument list as strings, WITHOUT the " +
-              "method name (a leading repeat of the method, argv-style, is tolerated). " +
-              "Array-valued args may be given as JSON arrays (e.g. preset_preview_list indexes) and are joined with commas. " +
+              "Run several operations sequentially in one call. operations is an array of {method, arguments}: method is " +
+              "any tool name (including help), and arguments is an OBJECT of named arguments using exactly the same keys as " +
+              "that tool's inputSchema (e.g. {\"method\":\"enter\",\"arguments\":{\"section\":\"Face\",\"category\":\"Irises\"}}, " +
+              "{\"method\":\"hair_group_add\",\"arguments\":{\"category\":\"Front\",\"from\":\"look/fringe\",\"name\":\"Bangs\"}}). " +
+              "Positional arrays are NOT supported: an array in `arguments` is rejected, an unknown key or a missing required " +
+              "argument is an error, so a call can never silently land on the wrong parameter. Array-valued arguments (e.g. " +
+              "preset_preview_list indexes) are passed as JSON arrays inside `arguments`. " +
               "Returns one {ok,result|error} per operation, in order, followed by the frames captured by image-returning " +
               "ops (screenshot/ui_screenshot/previews) as inline images with an [op N] marker. Use this for the visual " +
               "loop: mutate + move the camera + screenshot in one call. Large batches of mutating ops can take a long " +
@@ -1106,21 +1151,13 @@ public static class McpHost
                           ["properties"] = new Dictionary<string, object>
                           {
                               ["method"] = P("string", "Tool/command name."),
-                              ["args"] = new Dictionary<string, object>
+                              ["arguments"] = new Dictionary<string, object>
                               {
-                                  ["type"] = "array",
-                                  // Each positional arg is a string; array-valued args (e.g.
-                                  // preset_preview_list indexes) may be given as a JSON array, joined
-                                  // with commas by the dispatcher.
-                                  ["items"] = new Dictionary<string, object>
-                                  {
-                                      ["anyOf"] = new List<object>
-                                      {
-                                          new Dictionary<string, object> { ["type"] = "string" },
-                                          new Dictionary<string, object> { ["type"] = "array", ["items"] = new Dictionary<string, object> { ["type"] = "string" } },
-                                      },
-                                  },
-                                  ["description"] = "Positional arguments (strings; an array is joined with commas).",
+                                  ["type"] = "object",
+                                  // Named arguments, same keys as the tool's inputSchema (array-valued
+                                  // arguments such as preset_preview_list `indexes` stay JSON arrays).
+                                  ["additionalProperties"] = true,
+                                  ["description"] = "Named arguments, the same keys as the corresponding tool's inputSchema.",
                               },
                           },
                           ["required"] = new List<object> { "method" },

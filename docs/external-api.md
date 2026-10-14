@@ -219,14 +219,18 @@ model.
   model; `ui_screenshot` is the exception and works without one.
 - `main_menu()` — return to the main menu (resets the dirty flag, no dialog).
 - **`batch`** — an array of operations executed sequentially on the main thread with a per-element
-  result: `{method, args}` objects (MCP) or an array of commands (raw protocol). MCP `batch` accepts
-  any tool name, including `help`. For image-returning operations (`screenshot`, `ui_screenshot`,
-  `preset_preview_*` with `inline`/`both`) it appends inline image blocks, each preceded by an
-  `[op N] <method>` text marker, capped at 12 images / 8 MB per batch (excess dropped). The raw
-  protocol returns text only. Batch size is bounded by `max_batch_ops` (`servers.json`, default 200,
-  0 = unlimited); exceeding it is an error before the batch starts. Operation arguments live in
-  `args` (raw protocol also accepts `params`); a leading repeat of the method name is tolerated.
-  Array values (e.g. `indexes`) are comma-joined.
+  result: `{method, arguments}` objects (MCP) or an array of commands (raw protocol). MCP `batch` takes
+  **named arguments only**: `arguments` is an object with exactly the same keys as that tool's
+  `inputSchema` (e.g. `{"method":"enter","arguments":{"section":"Face","category":"Irises"}}`,
+  `{"method":"hair_group_add","arguments":{"category":"Front","from":"look/fringe","name":"Bangs"}}`).
+  A positional array in `arguments` is rejected, an unknown key or a missing required argument is an
+  error, so an operation can never silently land on the wrong parameter. `method` is any tool name,
+  including `help`; array-valued arguments (e.g. `preset_preview_list` `indexes`) stay JSON arrays.
+  For image-returning operations (`screenshot`, `ui_screenshot`, `preset_preview_*` with
+  `inline`/`both`) it appends inline image blocks, each preceded by an `[op N] <method>` text marker,
+  capped at 12 images / 8 MB per batch (excess dropped). The raw protocol returns text only. Batch
+  size is bounded by `max_batch_ops` (`servers.json`, default 200, 0 = unlimited); exceeding it is an
+  error before the batch starts. Raw-protocol operation arguments also accept `args`/`params`.
 - **`status`** (MCP) — a liveness/queue probe answered **outside the main-thread queue** (like the
   JSON-RPC `ping`), so it works during a mutation or batch. Returns `{inflight?, inflight_seconds?,
   queued, batch?}`: the current command (if running > 3 s), the queue length, and the batch position
