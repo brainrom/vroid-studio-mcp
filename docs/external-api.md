@@ -185,6 +185,12 @@ model.
   second `enter`.
 - `set_param(...)` — the single setter for numeric/combined and color values; the global `path` from
   `enter` is preferred, `index` is short-lived.
+- `create_custom_preset(section, category, name)` — create a named custom preset (a Custom sub-tab
+  item) in one call; `name` is applied through the dialog-free registry rename, so it gets a
+  meaningful identifier immediately. Returns `{section, category, id, name, kind:"custom", renamed}`
+  where `id` is the preset's continuous id in `presets` (custom items come first). A fresh item is an
+  empty template (no strand geometry) until it is sculpted in the design editor. Creating does not
+  apply the preset; use `select_preset` for that. Blocking.
 - `save [path]` — without a path, saves in place (`saved`); with a path, performs save-as
   (`MainActionHandler.SaveSync(path)`, no dialog) and returns the resolved path. Both variants are
   confirmed by a signal rather than a fixed pause (save-as: the file appears; in-place: the dirty flag

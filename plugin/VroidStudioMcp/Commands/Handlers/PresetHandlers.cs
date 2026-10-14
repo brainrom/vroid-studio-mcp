@@ -149,6 +149,70 @@ public static class PresetHandlers
 
     public static IEnumerator List(CommandDispatcher.Context ctx) => ListPresets(ctx, false);
 
+    // Public: create a named custom preset (the Custom sub-tab item) in one call. `name` is applied
+    // through the dialog-free registry rename, so the new item gets a meaningful id immediately.
+    public static IEnumerator CreateCustom(CommandDispatcher.Context ctx)
+    {
+        const string usage = "usage: create_custom_preset <section> <category> <name>";
+        var section = CommandUtil.ResolveSectionArg(ctx, 0, usage);
+        var tab = CommandUtil.Arg(ctx, 1);
+        var name = CommandUtil.Arg(ctx, 2);
+        if (section == null) yield break;
+        if (tab == null || name == null) { ctx.Error = usage; yield break; }
+        name = name.Trim();
+        if (name.Length == 0) { ctx.Error = "create_custom_preset: name must not be empty"; yield break; }
+
+        yield return CommandUtil.EnterSection(section);
+        var selectorShort = section + ".PresetsSelectorViewModel";
+        var category = Categories.FindTab(Categories.FindSelectorByShort(selectorShort), tab);
+        if (category == null) { ctx.Error = $"no tab '{tab}'{CommandUtil.TabHint(section)}"; yield break; }
+        var presetNode = Get(category, "PresetCategoryViewModel") ?? category;
+        var add = Presets.CustomItemOfKind(presetNode, "add");
+        if (add == null) { ctx.Error = $"create_custom_preset: '{tab}' has no Custom slot (Create New)"; yield break; }
+
+        var before = Presets.CustomItemRefs(presetNode);
+        int beforeCount = before.Count;
+        Invoke(add, "AddItem");
+        yield return CommandUtil.WaitUntil(() =>
+        {
+            var node = Categories.FindTab(Categories.FindSelectorByShort(selectorShort), tab);
+            var pn = Get(node, "PresetCategoryViewModel") ?? node ?? presetNode;
+            return Presets.CustomItemCount(pn) > beforeCount;
+        }, 20f);
+        yield return CommandUtil.Pause(0.5f);
+
+        var cat2 = Categories.FindTab(Categories.FindSelectorByShort(selectorShort), tab) ?? category;
+        var pn2 = Get(cat2, "PresetCategoryViewModel") ?? cat2 ?? presetNode;
+        var item = Presets.NewCustomItem(pn2, before);
+        if (item == null) { ctx.Error = "create_custom_preset: the new item did not appear (creation failed)"; yield break; }
+
+        string auto = Get(item, "DisplayName") as string ?? TryGetLabel(item);
+        bool renamed = false;
+        if (!string.Equals(auto, name, StringComparison.Ordinal))
+        {
+            if (!Presets.RenameCustomItem(item, name, out var rerr))
+            { ctx.Error = $"create_custom_preset: created but rename failed: {rerr}"; yield break; }
+            renamed = true;
+            yield return CommandUtil.Pause(0.5f);
+        }
+        // Rename rewrites the item's file and rebuilds the Custom list, so the captured VM goes stale:
+        // re-resolve "the item that was not there before" and read the fresh instance.
+        var cat3 = Categories.FindTab(Categories.FindSelectorByShort(selectorShort), tab) ?? cat2;
+        var pn3 = Get(cat3, "PresetCategoryViewModel") ?? cat3 ?? pn2;
+        var fresh = Presets.NewCustomItem(pn3, before) ?? item;
+        var finalName = Get(fresh, "DisplayName") as string ?? name;
+
+        int id = -1;
+        foreach (var e in Presets.Entries(selectorShort, tab, "all"))
+            if (ReferenceEquals(e.Option, fresh)) { id = e.Id; break; }
+
+        ctx.Result = new Dictionary<string, object>
+        {
+            ["section"] = Sections.SectionLabel(section), ["category"] = tab, ["id"] = id,
+            ["name"] = finalName, ["kind"] = "custom", ["renamed"] = renamed,
+        };
+    }
+
     // Dev command (TCP only, not exposed over MCP): like `presets` but also returns the raw
     // resourceName/itemId, which the labeler harness needs to key labels and detect gaps.
     public static IEnumerator ListFull(CommandDispatcher.Context ctx) => ListPresets(ctx, true);

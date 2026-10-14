@@ -144,6 +144,38 @@ public static class Presets
         return Enumerate(items).ElementAtOrDefault(index);
     }
 
+    /// <summary>The saved custom items (excludes the Create New / Import tiles), in display order.</summary>
+    public static List<object> CustomItemRefs(object presetCategoryNode)
+    {
+        var list = new List<object>();
+        if (presetCategoryNode == null) return list;
+        foreach (var o in Enumerate(Get(presetCategoryNode, "_customItems") ?? Get(presetCategoryNode, "CustomItemOptions")))
+        {
+            var t = TypeName(o) ?? "";
+            if (t.EndsWith("AddCustomItemOptionViewModel") || t.EndsWith("ImportCustomItemOptionViewModel")) continue;
+            list.Add(o);
+        }
+        return list;
+    }
+
+    /// <summary>The item that appeared after a create: the first one not in <paramref name="before"/>.</summary>
+    public static object NewCustomItem(object presetCategoryNode, List<object> before)
+    {
+        foreach (var o in CustomItemRefs(presetCategoryNode))
+            if (before == null || !before.Any(b => ReferenceEquals(b, o))) return o;
+        return null;
+    }
+
+    /// <summary>The active (applied) preset of a category when it is a custom item, else null. This is
+    /// the guard for editing: only custom items can be procedurally sculpted, stock presets are
+    /// freehand and cannot.</summary>
+    public static Entry SelectedCustomEntry(string selectorShort, string tab)
+    {
+        foreach (var e in Entries(selectorShort, tab, "custom"))
+            if (Get(e.Option, "IsSelected") is bool b && b) return e;
+        return null;
+    }
+
     /// <summary>Number of real saved custom items (excludes the add/import tiles).</summary>
     public static int CustomItemCount(object presetCategoryNode)
     {

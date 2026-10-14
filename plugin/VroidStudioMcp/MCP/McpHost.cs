@@ -68,7 +68,7 @@ public static class McpHost
         "item-specific Outfit sliders, clear presets, colours, camera, values, sessions - call help(topic) before guessing; " +
         "it is the detailed, authoritative reference. help() with no topic lists the topics.\n\n" +
         "TOOLS: state, status, sections, open, create, categories, enter, presets, preset_preview_list, preset_preview_range, select_preset, " +
-        "set_param, camera, screenshot, save, main_menu, exit, batch, help. " +
+        "create_custom_preset, set_param, camera, screenshot, save, main_menu, exit, batch, help. " +
         "Use batch for several ordered operations + captures in one call (it returns captured frames inline and accepts any " +
         "tool name, including help). status is answered without the main-thread queue, so it works while a command or batch runs. " +
         "(ui_screenshot is a dev-only tool, disabled when dev_tools=false in the servers config.)\n";
@@ -108,7 +108,9 @@ public static class McpHost
                 "{name, category, kind, has_clear_preset, parameters, globals?, item?} - the same payload as enter - so Outfit can " +
                 "fetch the new item's sliders without a second call.\n" +
                 "- Custom presets are the user's own saved items (Custom sub-tab), applied exactly like a stock preset. They are " +
-                "global (saved on disk) and show up in every model.\n" +
+                "global (saved on disk) and show up in every model. Create one, named, with " +
+                "create_custom_preset(section, category, name) -> {id,name}; it is an empty template until it is\n" +
+                "designed in the hair design editor.\n" +
                 "- has_clear_preset (in categories/enter): true means the tab has a Clear slot - selecting it " +
                 "removes the element entirely. When such a tab is currently empty, enter returns no parameters and " +
                 "needs_preset=true; after choosing any real preset the parameter set is identical for every preset. " +
@@ -950,6 +952,21 @@ public static class McpHost
                   ["category"] = P("string", "Category/tab name from categories()."),
                   ["index"] = P("integer", "Preset id from presets() (custom and stock share one list); the clear entry has kind 'clear'."),
                   ["params"] = P("boolean", "When true, also return the refreshed parameter list (like enter()). Default false returns just the preset's name."),
+              }),
+
+            T("create_custom_preset",
+              "Create a new custom preset (a Custom sub-tab item, the user's own reusable preset) with the given " +
+              "name, in one call. Custom presets are global (saved on disk) and appear in every model; they list, " +
+              "preview and apply exactly like a stock preset (see presets/select_preset). A freshly created item is " +
+              "an empty template (it has no strand geometry yet) until it is sculpted. Returns " +
+              "{section,category,id,name,kind:'custom',renamed}: id is the preset's id in presets() (custom first). " +
+              "Creating does not apply the preset to the model; select it with select_preset when you want to use it. Blocking.",
+              new[] { "section", "category", "name" }, new[] { "section", "category", "name" },
+              new()
+              {
+                  ["section"] = EnumSchema("Section label.", sections),
+                  ["category"] = P("string", "Category/tab name from categories()."),
+                  ["name"] = P("string", "Meaningful identifier for the new custom preset (shown by presets())."),
               }),
 
             T("set_param",
