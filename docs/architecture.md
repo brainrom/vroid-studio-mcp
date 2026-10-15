@@ -18,6 +18,7 @@ plugin/VroidStudioMcp/
     Signals.cs              // Arm/Ready/Version — rebuild and model readiness signal
     Registries.cs           // Selectors, ColorRegistry, Utf8
     Logging.cs              // WriteJson, TransferableGroupDisplayName
+    DialogTrace.cs          // debug trace of every engine dialog (un-intercepted windows → dialog_trace.log)
     PresetLabels.cs         // overlay of preset labels (labels/*.json → resourceName→label)
     ServerSettings.cs       // config of addresses/flags (BepInEx/config) + live restart
     WinePaths.cs            // host↔app path translation (Wine)

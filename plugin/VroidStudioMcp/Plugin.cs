@@ -145,6 +145,16 @@ public class Plugin : BasePlugin
         // provider shows, so a failed open can be detected (and dismissed) instead of waiting 40 s.
         PatchAllByName("VRoid.Studio.Dialog.ViewModel.DialogProviderViewModel", "Show", new HarmonyMethod(
             typeof(VroidState).GetMethod(nameof(OnDialogShown), BindingFlags.Public | BindingFlags.Static)));
+        // dialog_trace devtool (servers.json): the Show funnel above is already traced; install the
+        // notification/dismiss hooks only when the trace is on, so the devtool adds no hooks otherwise.
+        if (ServerSettings.DialogTrace)
+        {
+            PatchAllByName("VRoid.Studio.Dialog.ViewModel.DialogProviderViewModel", "ShowNotification", new HarmonyMethod(
+                typeof(DialogTrace).GetMethod(nameof(DialogTrace.OnNotify), BindingFlags.Public | BindingFlags.Static)));
+            PatchAllByName("VRoid.Studio.Dialog.ViewModel.DialogProviderViewModel", "Dismiss", new HarmonyMethod(
+                typeof(DialogTrace).GetMethod(nameof(DialogTrace.OnDismiss), BindingFlags.Public | BindingFlags.Static)),
+                prefix: true);
+        }
 
         // independent per-frame ticker (active on every screen, unlike AvatarEditor.Update)
         try

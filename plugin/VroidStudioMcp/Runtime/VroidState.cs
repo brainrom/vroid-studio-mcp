@@ -54,11 +54,15 @@ public static class VroidState
     // remember the provider so it can be dismissed. Only while a load is in flight.
     public static void OnDialogShown(object __instance, object[] __args)
     {
+        // Trace EVERY modal dialog (dialog_trace devtool) - a dialog shown during an in-flight command
+        // is one the plugin did not intercept and will block until a human answers.
+        var dialog = First(__args);
+        DialogTrace.OnShow(dialog);
         try
         {
             if (__instance == null || !_awaitingLoadError) return;
             _loadErrorProvider = __instance;
-            _loadErrorDialog = First(__args);
+            _loadErrorDialog = dialog;
         }
         catch { }
     }

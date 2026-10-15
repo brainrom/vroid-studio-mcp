@@ -243,9 +243,13 @@ Exploration dump (only with `dump_artifacts: true`): `<app root>/catalog_<Full.T
 (categories, parameters, presets) and the combined `category_catalog.json`.
 
 `debug_artifacts` (off by default) only adds verbose runtime log lines (`PARAM[EDIT]`/`PARAM[REFRESH]`);
-`dump_artifacts` (off by default) is the one that writes files (`ui_events.jsonl`, `param_trace.log`,
-`catalog_*.json`, `category_catalog.json`, `catalog_params.json`) — those are only needed when the
-editor build changes and the catalog has to be re-verified, not for normal work.
+`dump_artifacts` (off by default) is the one that writes the catalog/event files (`ui_events.jsonl`,
+`param_trace.log`, `catalog_*.json`, `category_catalog.json`, `catalog_params.json`) — those are only
+needed when the editor build changes and the catalog has to be re-verified, not for normal work.
+`dialog_trace` (off by default) is the independent dialog-tracking devtool: it writes
+`dialog_trace.log` — every `DialogProviderViewModel` Show/ShowNotification/Dismiss, plus every
+custom-item save prompt that was **not** intercepted, each with the in-flight command and the
+pre-armed-answer state (see [`quirks.md`](quirks.md) §Hair).
 
 **Command servers** (both processed on the main thread via the ticker
 `BepInEx AddComponent<VroidTicker>` + public `Update`, shared `CommandDispatcher`):

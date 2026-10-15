@@ -98,7 +98,8 @@ with stable `path`s.
 
 Configuration lives in `<app>/BepInEx/config/com.kokokoshka.vroidstudiomcp.servers.json`: addresses,
 `dev_tools`, `debug_artifacts` (verbose runtime log lines), `dump_artifacts` (diagnostic file dumps;
-off unless re-verifying a new editor build), `max_batch_ops`, and preview-quality flags
+off unless re-verifying a new editor build), `dialog_trace` (dialog-window tracing; see
+[`docs/quirks.md`](docs/quirks.md)), `max_batch_ops`, and preview-quality flags
 (`msaa_samples`, `render_scale`, `aniso_filtering`). The address and `dev_tools` can also be changed
 from the in-app Settings dialog, section **Programmatic Control (MCP)**.
 

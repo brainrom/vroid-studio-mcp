@@ -28,6 +28,11 @@ public static class ServerSettings
     // catalog_params.json, ui_events.jsonl, param_trace.log). Only needed when re-verifying a new
     // editor build; off by default so the working folder stays clean.
     internal static bool DumpArtifacts { get; private set; } = false;
+    // Devtool for dialog tracking: traces every engine dialog the plugin sees (DialogProviderViewModel
+    // Show/ShowNotification/Dismiss) and every custom-item save prompt that was NOT intercepted, to
+    // <app root>/dialog_trace.log. Independent of the two artifact flags (it is neither a catalog dump
+    // nor verbose param logging); off by default.
+    internal static bool DialogTrace { get; private set; } = false;
     // Hard upper bound on one `batch` call's operation count (0 = unlimited). A guard against absurd
     // requests; the tight bound for the MCP client's request timeout is chunking + status, not this.
     internal static int MaxBatchOps { get; private set; } = 200;
@@ -79,6 +84,8 @@ public static class ServerSettings
                 DebugArtifacts = da.GetBoolean();
             if (root.TryGetProperty("dump_artifacts", out var dmp) && (dmp.ValueKind == JsonValueKind.True || dmp.ValueKind == JsonValueKind.False))
                 DumpArtifacts = dmp.GetBoolean();
+            if (root.TryGetProperty("dialog_trace", out var dtr) && (dtr.ValueKind == JsonValueKind.True || dtr.ValueKind == JsonValueKind.False))
+                DialogTrace = dtr.GetBoolean();
             if (root.TryGetProperty("max_batch_ops", out var mb) && mb.ValueKind == JsonValueKind.Number && mb.TryGetInt32(out var mbi) && mbi >= 0)
                 MaxBatchOps = mbi;
             if (root.TryGetProperty("msaa_samples", out var ms) && ms.ValueKind == JsonValueKind.Number && ms.TryGetInt32(out var msi) && msi >= 0 && msi <= 8)
@@ -89,7 +96,7 @@ public static class ServerSettings
                 RenderScale = rsf;
             if (!TryParse(TcpAddress, out _, out _)) TcpAddress = DefaultTcp;
             if (!TryParse(McpAddress, out _, out _)) McpAddress = DefaultMcp;
-            PluginLog.LogInfo($"servers config: enabled={Enabled} tcp={TcpAddress} mcp={McpAddress} dev_tools={DevTools} debug_artifacts={DebugArtifacts} dump_artifacts={DumpArtifacts} max_batch_ops={MaxBatchOps} msaa={MsaaSamples} aniso={AnisoFiltering} render_scale={RenderScale}");
+            PluginLog.LogInfo($"servers config: enabled={Enabled} tcp={TcpAddress} mcp={McpAddress} dev_tools={DevTools} debug_artifacts={DebugArtifacts} dump_artifacts={DumpArtifacts} dialog_trace={DialogTrace} max_batch_ops={MaxBatchOps} msaa={MsaaSamples} aniso={AnisoFiltering} render_scale={RenderScale}");
         }
         catch (Exception e) { PluginLog.LogError($"servers config load failed: {e.Message}"); }
     }
@@ -105,6 +112,7 @@ public static class ServerSettings
                        $"  \"dev_tools\": {(DevTools ? "true" : "false")},\n" +
                        $"  \"debug_artifacts\": {(DebugArtifacts ? "true" : "false")},\n" +
                        $"  \"dump_artifacts\": {(DumpArtifacts ? "true" : "false")},\n" +
+                       $"  \"dialog_trace\": {(DialogTrace ? "true" : "false")},\n" +
                        $"  \"max_batch_ops\": {MaxBatchOps},\n" +
                        $"  \"msaa_samples\": {MsaaSamples},\n" +
                        $"  \"aniso_filtering\": {(AnisoFiltering ? "true" : "false")},\n" +
