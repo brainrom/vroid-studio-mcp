@@ -139,6 +139,9 @@ public static class CommandDispatcher
         ["hook"] = DebugHandlers.Hook,
         ["unhook"] = DebugHandlers.Unhook,
         ["hooks"] = DebugHandlers.HooksList,
+        ["memstat"] = DebugHandlers.MemStat,
+        ["memclear"] = DebugHandlers.MemClear,
+        ["memgc"] = DebugHandlers.MemGc,
     };
 
     // Test hooks: run a core handler directly on the calling coroutine (no dispatcher queue).

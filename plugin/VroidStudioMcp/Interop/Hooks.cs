@@ -252,6 +252,8 @@ public static class Hooks
                 // Selectors are only created while the edit root is alive; drop the stale ones so
                 // `selectors` and the open/create readiness checks (Count >= 4) reflect the new session.
                 Selectors.Clear();
+                // The colour-VM registry roots per-session objects; reset it so they can be collected.
+                ColorRegistry.Clear();
                 Catalog.ResetDumps();
                 PluginLog.LogWarning(">>> BACK TO MODEL SELECT");
                 return;

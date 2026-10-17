@@ -62,11 +62,25 @@ internal static class ColorRegistry
 
     internal static IEnumerable<object> Vms => ByPtr.Values;
 
+    /// <summary>Number of captured colour VMs (diagnostics: it grows with every colour edit and is only
+    /// cleared on demand — see the memory-leak note in docs/hair-export.md).</summary>
+    internal static int Count => ByPtr.Count;
+
+    /// <summary>Drop every captured reference. Safe for consumers (they already prefer the newest
+    /// instance); used by the <c>memclear</c> dev command to test whether the registry is a leak root.</summary>
+    internal static void Clear() { ByPtr.Clear(); Seq.Clear(); }
+
     internal static void Register(object vm)
     {
         if (vm is not Il2CppObjectBase b) return;
         var p = b.Pointer;
         if (p == IntPtr.Zero) return;
+        // Keep only what Colors.RefreshRegistry actually reads (SubColorSelection leaves and the
+        // HairEditor colour VM). Registering every colour-setter instance (material colour nodes,
+        // pickers, …) rooted large per-session object graphs and leaked ~90 MB per design-session
+        // entry — see the "Known leak" note in docs/hair-export.md.
+        var t = TypeName(vm) ?? "";
+        if (!t.Contains("SubColorSelection") && !t.EndsWith("HairEditor.ViewModel")) return;
         ByPtr[p] = vm;
         Seq[p] = Interlocked.Increment(ref _counter);
     }
