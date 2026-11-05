@@ -54,7 +54,8 @@ public static class RenderHandlers
     public static IEnumerator Msaa(CommandDispatcher.Context ctx)
     {
         var a = CommandUtil.Arg(ctx, 0);
-        if (a == null || !int.TryParse(a, out var n)) { ctx.Error = "rendermaasa needs an integer 0..8"; return CommandUtil.Done(); }
+        if (!ArgParse.Int(a, "msaa_samples", out var n, out var error, 0, 8))
+        { ctx.Error = $"rendermaasa: {error}"; return CommandUtil.Done(); }
         ServerSettings.SetMsaaSamples(n);
         ctx.Result = new Dictionary<string, object>
         {
@@ -67,8 +68,8 @@ public static class RenderHandlers
     public static IEnumerator Scale(CommandDispatcher.Context ctx)
     {
         var a = CommandUtil.Arg(ctx, 0);
-        if (a == null || !float.TryParse(a, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var f))
-        { ctx.Error = "renderscale needs a number 1..4"; return CommandUtil.Done(); }
+        if (!ArgParse.Float(a, "render_scale", out var f, out var error, 1f, 4f))
+        { ctx.Error = $"renderscale: {error}"; return CommandUtil.Done(); }
         ServerSettings.SetRenderScale(f);
         ctx.Result = new Dictionary<string, object>
         {

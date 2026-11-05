@@ -175,6 +175,8 @@ accepted.
 ## Conventions
 
 - Comments only where they add value (the project keeps a minimum of comments).
+- Command arguments are parsed through `Commands/ArgParse.cs` (strict, actionable errors); do not add a
+  per-handler boolean/switch parser or a silent fallback.
 - Refer to VRoid Studio as the **app** (a 3D editor), not a "game", in documentation and comments.
 - **Documentation language:** internal docs in English; end-user docs (READMEs) bilingual EN + RU.
 - Code and identifiers are English.

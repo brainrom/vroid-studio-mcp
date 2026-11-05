@@ -40,7 +40,7 @@ public static class PresetHandlers
             var tab = CommandUtil.Arg(ctx, 2); var index = CommandUtil.Arg(ctx, 3);
             if (section == null) yield break;
             if (tab == null || index == null) { ctx.Error = "usage: haircustom select <section> <tab> <index>"; yield break; }
-            if (!int.TryParse(index, out var i) || i < 0) { ctx.Error = "haircustom select: index must be >= 0"; yield break; }
+            if (!ArgParse.Int(index, "index", out var i, out var indexError, 0)) { ctx.Error = $"haircustom select: {indexError}"; yield break; }
             yield return CommandUtil.EnterSection(section);
             var category = CommandUtil.EnterCategory(section, tab);
             if (category == null) { ctx.Error = $"no tab '{tab}'{CommandUtil.TabHint(section)}"; yield break; }
@@ -91,7 +91,7 @@ public static class PresetHandlers
             var tab = CommandUtil.Arg(ctx, 2); var index = CommandUtil.Arg(ctx, 3); var name = CommandUtil.Arg(ctx, 4);
             if (section == null) yield break;
             if (tab == null || index == null || name == null) { ctx.Error = "usage: haircustom rename <section> <tab> <index> <name>"; yield break; }
-            if (!int.TryParse(index, out var i) || i < 0) { ctx.Error = "haircustom rename: index must be >= 0"; yield break; }
+            if (!ArgParse.Int(index, "index", out var i, out var indexError, 0)) { ctx.Error = $"haircustom rename: {indexError}"; yield break; }
             yield return CommandUtil.EnterSection(section);
             var category = Categories.FindTab(Categories.FindSelectorByShort(section + ".PresetsSelectorViewModel"), tab);
             if (category == null) { ctx.Error = $"no tab '{tab}'{CommandUtil.TabHint(section)}"; yield break; }
@@ -111,7 +111,7 @@ public static class PresetHandlers
             var tab = CommandUtil.Arg(ctx, 2); var index = CommandUtil.Arg(ctx, 3);
             if (section == null) yield break;
             if (tab == null || index == null) { ctx.Error = "usage: haircustom save <section> <tab> <index>"; yield break; }
-            if (!int.TryParse(index, out var i) || i < 0) { ctx.Error = "haircustom save: index must be >= 0"; yield break; }
+            if (!ArgParse.Int(index, "index", out var i, out var indexError, 0)) { ctx.Error = $"haircustom save: {indexError}"; yield break; }
             yield return CommandUtil.EnterSection(section);
             var category = Categories.FindTab(Categories.FindSelectorByShort(section + ".PresetsSelectorViewModel"), tab);
             if (category == null) { ctx.Error = $"no tab '{tab}'{CommandUtil.TabHint(section)}"; yield break; }
@@ -266,7 +266,8 @@ public static class PresetHandlers
         var category = CommandUtil.EnterCategory(section, tab);
         if (category == null) { ctx.Error = $"no tab '{tab}'{CommandUtil.TabHint(section)}"; yield break; }
         yield return CommandUtil.Pause(0.6f);
-        if (!int.TryParse(index, out var i) || i < 0) { ctx.Error = "id must be a non-negative integer (from `presets`)"; yield break; }
+        if (!ArgParse.Int(index, "id", out var i, out var idError, 0))
+        { ctx.Error = $"select_preset: {idError}; use the id from presets()"; yield break; }
         var entry = Presets.EntryAt(section + ".PresetsSelectorViewModel", tab, i);
         if (entry == null) { ctx.Error = $"id {i} out of range (from `presets`)"; yield break; }
         // Public result is the applied preset's display name, never the raw resourceName.
@@ -298,8 +299,8 @@ public static class PresetHandlers
         foreach (var part in list.Split(','))
         {
             var p = part.Trim();
-            if (!int.TryParse(p, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var v) || v < 0)
-            { ctx.Error = $"preset_preview_list: bad index '{p}'"; yield break; }
+            if (!ArgParse.Int(p, "index", out var v, out var idxError, 0))
+            { ctx.Error = $"preset_preview_list: {idxError}"; yield break; }
             if (!indices.Contains(v)) indices.Add(v);
         }
         if (indices.Count == 0) { ctx.Error = "preset_preview_list: empty index list"; yield break; }
@@ -319,11 +320,12 @@ public static class PresetHandlers
         if (section == null) yield break;
         if (tab == null)
         { ctx.Error = "usage: preset_preview_range <section> <tab> <start> [count] [file|inline|both|b64]"; yield break; }
-        if (!int.TryParse(CommandUtil.Arg(ctx, 2), out var start) || start < 0)
-        { ctx.Error = "preset_preview_range: start must be an integer >= 0"; yield break; }
+        if (!ArgParse.Int(CommandUtil.Arg(ctx, 2), "start", out var start, out var startError, 0))
+        { ctx.Error = $"preset_preview_range: {startError}"; yield break; }
         int count = 1;
-        if (CommandUtil.Arg(ctx, 3) != null && (!int.TryParse(CommandUtil.Arg(ctx, 3), out count) || count < 1 || count > 12))
-        { ctx.Error = "preset_preview_range: count must be 1..12"; yield break; }
+        var countArg = CommandUtil.Arg(ctx, 3);
+        if (countArg != null && !ArgParse.Int(countArg, "count", out count, out var countError, 1, 12))
+        { ctx.Error = $"preset_preview_range: {countError}"; yield break; }
         var mode = (CommandUtil.Arg(ctx, 4) ?? "file").ToLowerInvariant();
         if (!CommandUtil.IsPreviewMode(mode)) { ctx.Error = "preset_preview_range: mode must be file|inline|both|b64"; yield break; }
 

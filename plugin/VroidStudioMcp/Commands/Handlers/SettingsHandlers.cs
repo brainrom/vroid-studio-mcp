@@ -12,7 +12,10 @@ public static class SettingsHandlers
     public static IEnumerator State(CommandDispatcher.Context ctx) { ctx.Result = SettingsUi.WidgetState(); return CommandUtil.Done(); }
     public static IEnumerator Toggle(CommandDispatcher.Context ctx)
     {
-        ctx.Result = SettingsUi.SetEnabledFromCommand(string.Equals(CommandUtil.Arg(ctx, 0), "true", StringComparison.OrdinalIgnoreCase));
+        if (!ArgParse.Flag(CommandUtil.Arg(ctx, 0), "enabled", out var enabled, out var error,
+                           ("true", true), ("false", false)))
+        { ctx.Error = $"settingstoggle: {error}"; return CommandUtil.Done(); }
+        ctx.Result = SettingsUi.SetEnabledFromCommand(enabled);
         return CommandUtil.Done();
     }
     public static IEnumerator Edit(CommandDispatcher.Context ctx)

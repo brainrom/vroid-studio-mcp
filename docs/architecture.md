@@ -44,6 +44,7 @@ plugin/VroidStudioMcp/
     CommandServer.cs        // TCP 127.0.0.1:17890, string protocol, main-thread queue + response
     CommandDispatcher.cs    // thin router: queue, watchdog, method→handler registry, Test* hooks
     CommandUtil.cs          // common helpers: WaitUntil/Pause/Settle/Arg/ResolveSection/EnterSection
+    ArgParse.cs             // strict shared argument parsing (int/float/bool flags/choices + errors)
     CoroutineDriver.cs      // drives a managed iterator (one step per frame), shared by server/tests
     Handlers/               // one file per domain; each command is a static method Context→IEnumerator
       SessionHandlers.cs    // state/open/create/save/exit/main_menu/test

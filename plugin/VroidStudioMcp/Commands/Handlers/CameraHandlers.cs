@@ -31,7 +31,8 @@ public static class CameraHandlers
                 if (!HasFloat(1)) { ctx.Error = $"camera {sub} needs a number in [-1e6,1e6]"; yield break; }
                 break;
             case "rotate":
-                if (ctx.Args.Length < 2 || !int.TryParse(ctx.Args[1], out _)) { ctx.Error = "camera rotate needs an integer mode index"; yield break; }
+                if (!ArgParse.Int(CommandUtil.Arg(ctx, 1), "mode", out _, out var modeError, 0))
+                { ctx.Error = $"camera rotate: {modeError}"; yield break; }
                 break;
             case "frame":
                 if (CommandUtil.Arg(ctx, 1) == null) { ctx.Error = "camera frame needs a region (body|face|head|upper|legs|feet) [angle]"; yield break; }
