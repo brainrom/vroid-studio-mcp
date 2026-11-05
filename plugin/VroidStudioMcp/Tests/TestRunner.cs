@@ -40,6 +40,7 @@ public static class TestRunner
         ["renderchange"] = () => new RenderChangeTest(),
         ["sidebar"] = () => new SidebarTest(),
         ["thumbnaildirect"] = () => new ThumbnailDirectTest(),
+        ["customitemtest"] = () => new CustomItemTest(),
     };
 
     public static VroidTest Create(string name, string path)

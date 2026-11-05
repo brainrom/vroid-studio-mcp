@@ -16,6 +16,7 @@ plugin/VroidStudioMcp/
     Interop.cs              // Get/Set/Invoke/Enumerate/RealObj/RealType/TypeName/... (Il2Cpp)
     VroidState.cs           // captured VM/camera + readiness flags (_modelReady/_modelUpdating/_inEdit)
     Signals.cs              // Arm/Ready/Version — rebuild and model readiness signal
+    CustomItemSignals.cs    // registry Save/Notify versions (import/export/rename completion)
     Registries.cs           // Selectors, ColorRegistry, Utf8
     Logging.cs              // WriteJson, TransferableGroupDisplayName
     DialogTrace.cs          // debug trace of every engine dialog (un-intercepted windows → dialog_trace.log)
@@ -30,6 +31,7 @@ plugin/VroidStudioMcp/
     Sections.cs             // section switching (EditMode)
     Categories.cs           // tabs, search, counters
     Presets.cs              // preset selection/reset, preset display name, custom-item (Custom tab) list
+    CustomItems.cs          // custom-item import/export (*.vroidcustomitem) + import-dialog answer
     Parameters.cs           // ParamRef + assembly/serialization of category parameters and colors (enter payload)
     ParamCodec.cs           // color/numbers: Hex/TryParseColor/TryParseFinite/TryDbl/SafeNum
     Colors.cs               // color registry, universal setter
@@ -50,6 +52,7 @@ plugin/VroidStudioMcp/
       SessionHandlers.cs    // state/open/create/save/exit/main_menu/test
       CategoryHandlers.cs   // categories/enter (+ auto-framing of the camera)
       PresetHandlers.cs     // presets/presets_full/select_preset/preset_preview_*
+      CustomItemHandlers.cs // import_custom_preset/export_custom_preset
       ParamHandlers.cs      // set_param
       CameraHandlers.cs     // camera
       ScreenshotHandlers.cs // screenshot/ui_screenshot

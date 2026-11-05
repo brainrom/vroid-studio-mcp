@@ -70,6 +70,23 @@ public class Plugin : BasePlugin
         PatchAllByName("VRoidCore.Editing.Context", "LoadAndReplaceTransferableGroup", postfix);
         PatchAllByName("VRoid.Studio.ModelPresetsSelector.ClearOptionViewModel", "ClearTransferableGroup", postfix);
 
+        // The import flow ends with an ImportCustomItemDialogViewModel ("Imported successfully" /
+        // Wear now / Wear later). The import command supplies both the file and the wear answer, so
+        // the plugin answers that dialog before it is displayed (never a modal window).
+        PatchByTypeName(
+            "VRoid.Studio.Dialog.ViewModel.DialogProviderViewModel",
+            "Show",
+            new HarmonyMethod(typeof(CustomItems).GetMethod(nameof(CustomItems.OnDialogShow), BindingFlags.Public | BindingFlags.Static)),
+            prefix: true);
+
+        // Custom-item registry signals: the import/export/save/rename flows are async and their
+        // completion is not exposed as a Task on every path (SaveCustomItem/Rename are async void).
+        // Arm these counters before a mutation and wait for them instead of a fixed pause.
+        var ciSave = new HarmonyMethod(typeof(CustomItemSignals).GetMethod(nameof(CustomItemSignals.OnSave), BindingFlags.Public | BindingFlags.Static));
+        var ciNotify = new HarmonyMethod(typeof(CustomItemSignals).GetMethod(nameof(CustomItemSignals.OnNotify), BindingFlags.Public | BindingFlags.Static));
+        PatchByTypeName("VRoid.Studio.ModelPresetsSelector.CustomItemRegistry", "Save", ciSave);
+        PatchByTypeName("VRoid.Studio.ModelPresetsSelector.CustomItemRegistry", "NotifyUpdateFiles", ciNotify);
+
         // Parameter registry (catalog_params.json) only. These ctor patches are pointless without the
         // dump artifacts, and each one logs an Il2CppInterop native-detour warning, so only do them
         // when dump_artifacts is on.

@@ -271,7 +271,12 @@ of parameters, like `enter`), `camera …`, `screenshot`, `save`,
 
 Dev commands (**TCP only**, not exposed in MCP, the client doesn't know about them): `labels` (re-read
 overlay, `{dir,count,files}`), `label_set <section> <tab> <idx|resourceName> <text>`,
-`presets_full <section> <tab>` (like `presets`, but with `resourceName`/`itemId` — for the VLM harness).
+`presets_full <section> <tab>` (like `presets`, but with `resourceName`/`itemId` — for the VLM harness),
+`haircustom list <section> <tab>` / `select <section> <tab> <index>` / `create <section> <tab>` /
+`save|saveasnew <section> <tab> <index>` / `import <section> <tab> <path> [name] [wear=now|later]` /
+`export <section> <tab> <index> <path> [save=true|false] [overwrite=true|false]` /
+`rename <section> <tab> <index> <name>` /
+`tab <section> <tab> <presets|custom>` (saved custom presets of a category's Custom sub-tab — see §12),
 Base64 previews for the VLM harness are served by the public `preset_preview_range … b64` (inline in JSON,
 without writing files; count ≤ 12).
 

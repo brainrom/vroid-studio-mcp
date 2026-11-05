@@ -58,6 +58,7 @@ public static class CommandDispatcher
         "set_param", "label_set", "preset_preview_list", "preset_preview_range",
         "camera", "screenshot",
         "haircustom", "create_custom_preset",
+        "import_custom_preset", "export_custom_preset",
     };
 
     public static Task<CommandResult> Submit(string method, string[] args)
@@ -139,6 +140,8 @@ public static class CommandDispatcher
         ["renderscale"] = RenderHandlers.Scale,
         ["haircustom"] = PresetHandlers.Custom,
         ["create_custom_preset"] = PresetHandlers.CreateCustom,
+        ["import_custom_preset"] = CustomItemHandlers.Import,
+        ["export_custom_preset"] = CustomItemHandlers.Export,
         ["hook"] = DebugHandlers.Hook,
         ["unhook"] = DebugHandlers.Unhook,
         ["hooks"] = DebugHandlers.HooksList,
@@ -154,4 +157,16 @@ public static class CommandDispatcher
     public static IEnumerator TestSetParam(Context ctx) => ParamHandlers.Set(ctx);
     public static IEnumerator TestEnter(Context ctx) => CategoryHandlers.Enter(ctx);
     public static IEnumerator TestSelectPreset(Context ctx) => PresetHandlers.Select(ctx);
+
+    /// <summary>Test context for <see cref="TestRun"/>.</summary>
+    public static Context TestContext(string method, params string[] args)
+        => new() { Method = method, Args = args ?? Array.Empty<string>() };
+
+    /// <summary>Test hook: run ANY registered handler directly on the calling coroutine (no dispatcher
+    /// queue, no EditRequired guard), so an in-plugin test can drive the public command surface.</summary>
+    public static IEnumerator TestRun(Context ctx)
+    {
+        ctx.Method = (ctx.Method ?? "").ToLowerInvariant();
+        return Handlers.TryGetValue(ctx.Method, out var handler) ? handler(ctx) : CommandUtil.Done();
+    }
 }

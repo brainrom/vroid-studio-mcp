@@ -61,7 +61,9 @@ call the API, see `plugin/VroidStudioMcp/Editor/` and `docs/architecture.md`.
   `camera frame feet` the call `camera angles 150 -10` keeps the distance and the feet center.
   The rotation coroutine overwrites a **subsequent** `Zoom`/`Pan` (called right after `angles`), so
   the chain `ChangeAngles → Zoom` does not work — wait for the coroutine to finish. For a new
-  region/angle use `SetCustomView` via `camera frame <region> [angle]`.
+  region/angle use `SetCustomView` via `camera frame <region> [angle]`; the region preset also
+  carries a camera **pitch** (0 = level, +90 = straight down) — `top` = 80, the crown-from-above
+  view used to judge hair coverage.
   Calibration: `camera view <c> <v>`, diagnostics: `camera probe`.
 - **`ResetPosition()` resets angles and pan, but not the distance** (the zoom is encoded into the position). Therefore
   `camera reset` after `ResetPosition()` delivers the initial view via
@@ -197,6 +199,208 @@ call the API, see `plugin/VroidStudioMcp/Editor/` and `docs/architecture.md`.
 - "Set" presets and hair change several groups at once; hair — a single shared Main Color.
 - There are no human-readable names (`resourceName`/`itemId` + preview).
 
+## Hair design editor (Hairstyle sub-screen)
+
+- **The guide overlay (fitting mesh + handles + width curve) is drawn iff a group is selected.** It
+  does not depend on the active tool: both `Hand` (Select) and `ControlPoint` show it while a group
+  is selected. `DesignEditor.ViewModel` exposes `CurrentTool` (`Tool` = Hand/Brush/Retouch/ControlPoint)
+  and `Mode` (`Select`/`Brush`/`Retouch`/`ControlPoint` mode VM); switching the tool switches the mode.
+  Nothing else removes the overlay — hiding a group hides its hair, not the guide.
+- **Deselect = `set_SelectedItem(null)`** (what a click on the empty viewport does). It runs
+  `Mode.OnSelectedItemChanged(null)` → `UpdateHairGuides(null)` → the guides/overlay are dropped
+  (and the engine also calls `Model.ClearSelectedHairs()`). Verified: after it
+  `hair_guides == 0` and a screenshot has no overlay.
+- **Never Harmony-patch `DesignEditor.ViewModel.set_SelectedItem`.** With an observation postfix on it
+  (**even a no-op one**), the engine's own `set_SelectedItem(null)` throws (NRE from the patched
+  trampoline) and the UI can no longer deselect / remove the overlay. The plugin therefore does not
+  hook it (see `Interop/Hooks.cs`); the mode `OnSelectedItemChanged` hooks are safe and still report
+  selection changes. This was the root cause of the "clean render is impossible" symptom.
+- **`SelectedIndex` by reference is unreliable after a rebuild**: `set_SelectedCategory` (and other
+  group-list rebuilds) replaces the `HairGroupNodeViewModel` objects, so a comparison against the
+  still-selected engine node yields "nothing selected" while the engine (and its overlay) still holds
+  one. Decide "selected" from `get_SelectedItem != null`, not from a reference scan.
+- **A pristine entry is unselected.** `MoveToHairDesignEditor` arrives with no selection, i.e. a clean
+  render is the default; it is the *first* mutation (`hairgroup add`/`set <index>` selects a group)
+  that turns the overlay on.
+- **A group's name is its durable identity.** The name is stored in the preset and is what the left
+  panel shows, so it survives a rebuild (unlike the list index, which shifts on add/delete/category
+  switch) and is what the plugin addresses groups by (`hairgroup <cmd> <index|name>`); an unknown
+  name is an error (never a silent fallback to the selected group) and a name matching several groups
+  is an "ambiguous name" error (never a first-match). No synthetic session id is needed.
+- **Group visibility** is `ActionHandler.ToggleHairGroupVisibility(IHairGroupPath)` (a *toggle* —
+  compare `IsVisible` first to force a state); "solo" = hide every group but one.
+- **Procedural groups have no engine flip.** `ActionHandler.CloneProceduralHairGroup(ProceduralHairGroupPath)`
+  duplicates a group (the copy keeps the parameters and is **not** selected; it keeps the same name);
+  `FlipBrushHairGroup` exists for freehand only. Symmetry must be built as clone + negated
+  `Position`/`Center (X)`.
+- **Freehand (brush) strands: the (u,v) on the guide is the invariant, not the 3D point.**
+  `BrushHair.ControlPoints` are `ControlPoint{ Point, Normal, Uv }` in the guide's **local** frame.
+  Changing a guide parameter (`Guide Parameters/Height`, `Fit to Head`, …) **re-derives `Point`/
+  `Normal` from `Uv`** (measured: `Height 0.4→0.8` moved the points *and* the normals, left `Uv`
+  byte-identical), so a guide edit silently rewrites every strand's geometry — re-read after any guide
+  change. `v` is the length-normalized position along the guide axis (0 root, 1 tip; scales with
+  `Height`); `u` is the azimuth around the axis **in turns** (`u ≈ frac(1 − atan2(dx, dz)/360°)` in the
+  local `XZ` frame, `u=0` at local `+Z`; mirroring flips it; the engine normalizes it with
+  `BrushHair.NormalizeAngle`). The strand's parameter set is the same families as a procedural group
+  but every field is a **nullable override** (null = inherit from the group). Full model:
+  [`hair-freehand.md`](hair-freehand.md).
+- **Freehand mirroring is recorded only as a paired grouplet.** A strand drawn with `Mirror` on is a
+  `PairedGrouplet` (`Hair0`/`Hair1`); the UI never shows the pairing. Editing one side with `Mirror`
+  off **breaks the pair permanently** (`BreakIntoUnpairedGrouplets`) - it does not re-pair when Mirror
+  is turned back on; only flip/clone recreates a mirror.
+- **A freehand group's category is localization, not group type.** Brush groups live in the same
+  Front/Back/Side/Overall/Extra categories as procedural ones and the category does not restrict the
+  kind. `Base Hair` is listed by `hairgroup categories` but is **not** a strand-design entity (no
+  groups; the editor's precondition is `IsCustomizableNonBaseHair`) — base hair is a fixed preset worn
+  over the head, only re-textured.
+- **`save` while a design session is open does not include the session's uncommitted edits.** The
+  `.vroid` is written (the file exists and is valid), but the in-session changes (a moved control
+  point, a `Guide Parameters` edit, …) are not in it: re-opening reads the previously committed value.
+  Leaving the editor with Save (Overwrite/New) applies the design to the model, and only then does
+  `save` serialize it; `close_design(discard)` likewise drops the pending edits. (A design that *was*
+  committed is saved and reads back fine.)
+- **Entering/leaving the design editor repeatedly leaks memory.** Measured ~121 MB per entry before the
+  fix; a batch that applied ~129 hairstyles OOM-killed the app (~14 GB RSS). Root cause (fixed): the
+  plugin's `ColorRegistry` rooted *every* colour-setter instance, while consumers only read
+  `SubColorSelection` and `HairEditor.ViewModel`; registration is now restricted to those two types and
+  the registry is cleared when the edit root is left → growth drops to ~48 MB/entry (~30 with a periodic
+  GC). The **residual ~30 MB/entry is editor/native-side** and not reclaimable by GC, so long sweeps run
+  chunked (restart between chunks; the harness calls `memgc` every `--gc-every` exports). Diagnose with
+  the `memstat` / `memgc` / `memclear` dev commands. Details: [`hair-export.md`](hair-export.md).
+- **A group's `Children` (`BrushHairGrouplet`) is a compiler-generated iterator and cannot be walked
+  by `Interop.Enumerate`** — read the backing `List<BrushHairGrouplet> _hairs`, or use
+  `GetBrushHairGroupChildrenQuery(groupPath).Execute(model)` → `BrushHairStrandPath[]`. Also,
+  `Model.GetBrushHairGroup`/`GetBrushHairStrand` need the **concrete** `BrushHairGroupPath`/
+  `BrushHairStrandPath`, not the `IHairGroupPath`/`IHairStrandPath` proxy (which silently yields
+  null); the `GetHairGuide*` methods are the opposite (they take the interface).
+- **A "Saving temporary items" modal is raised by the section switch, not only by editor entry, and
+  refers to the category's *unsaved temporary design*.**
+  `ConfirmCustomItemSavingDialogUtil` exposes two awaited prompts, both "Save / Back / Start editing
+  without saving" (mapped to `CustomItemSavingResult` = SaveAndEdit / DiscardAndEdit / Cancel):
+  `CheckStashedButNotWornExistsAndConfirm` (fires when
+  `MultiCustomItemSavingModel.CheckStashedButNotWornExists()`) and the
+  `CheckStashedAndSpecifiedWornTemporaryAsNewItems(globalBus, multi, wornTg, ...)` variant (fires when
+  `CheckStashedOrSpecifiedWornTemporaryExists(wornTg)` - the category being entered still carries a
+  **worn temporary** item, i.e. a design applied to the model but not saved as a reusable custom item).
+  The reproduced prompt was the second kind: a `close_design(discard)` on Front left the sculpted Front
+  design as a worn temporary, so the next `create_custom_preset` (whose `CommandUtil.EnterSection`
+  switches into Hairstyle) asked about `TransferableGroupType.N00.Level1.HairFront`. The prompt is
+  reached both by `MoveToHairDesignEditor` (`open_design`; unanswered it never returns, no session
+  appears, and every later call looks like "no design editor open") **and by the section switch itself**
+  (`Sections.SwitchSectionForCat`, performed by `CommandUtil.EnterSection` at the start of
+  `create_custom_preset`, `save_custom_preset`, `enter`, ...). Like the exit notice it is **awaited**, so
+  it BLOCKS its caller: on the section-switch path the `create_custom_preset` 20 s "did the item
+  appear?" wait expired, the command failed with *"the new item did not appear (creation failed)"* and
+  the modal stayed on the whole window. The plugin answers it "start editing without saving"
+  (true = proceed; no custom item is written behind the caller's back) whenever a plugin command is
+  driving the engine (`CommandDispatcher.TryGetInFlight`) or for the edit-entry transition
+  (`HairDesign._enterDialogAnswer`), so a human-driven Edit/Export/Rename keeps the stock dialog.
+  `dialog_trace.log` (written when `dialog_trace` is on) records every dialog the plugin did *not*
+  intercept, with the in-flight command that reached it; a `STASH` line names the worn/stashed category
+  and the predicate (`wornTemporaryExists` / `stashedButNotWornExists`) - the probe used to pin this one.
+- **The Base Hair colour's *panel* is not exposed while the design editor is open**, but the colour
+  itself is: the same `enter Hairstyle "Base Hair"` that reports `Main Color` outside a session returns
+  `needs_preset` with a session open, yet the engine-side `IColorAccessor` (`Get/Set(Model)`) in the
+  eager `CategoryColorSelectionCollection` on the selector still reads and writes it. `HairBase`
+  (below) uses that handle, so the chromakey coverage check runs inside a design session too
+  (this is what the coverage check uses).
+- **`hair_coverage` must not judge "no base hair" from a colour value.** After a Clear a colour VM
+  (black) can linger in the `Colors` registry, so "a colour exists" would make the check pass
+  vacuously against an invisible base hair. The accessor's `GetIsAvailable(Model)` (and the
+  preset node's `IsSelected`) is the reliable signal; with nothing worn, a stock base-hair preset is
+  applied temporarily and the previous selection is put back afterwards.
+- **A successful import raises a modal `ImportCustomItemDialogViewModel`, and it is not awaited.** After
+  `ImportCustomItemByTransferableType` the engine shows "Imported successfully" with **Wear now** (invokes
+  the import confirmation callback and applies the item) and **Wear later** (just dismisses). The import
+  itself has already happened; the window only chooses whether to wear. It is a normal dialog (it does
+  not block the import task), but it blocks the editor and any following UI work, so a programmatic
+  import must answer it: the plugin prefixes `DialogProviderViewModel.Show` and consumes it before it is
+  displayed (`import_custom_preset` arms the answer; `wear` = Wear now, otherwise Wear later).
+- **A renamed custom item's row can briefly revert to the old name.** `RenameNotSelectedCustomItem`
+  rewrites the file, the registry `Save` notifies the Custom tab, and the file-system observer then
+  re-reads the file and notifies again; between those two notifications the row may show the previous
+  `DisplayName` (observed after an import + rename). The registry file's `CustomItemMetaData` is the
+  stable engine truth, so the plugin reads the name/type back through
+  `LoadCustomItemContentFromPath` instead of trusting the row VM. Completion waits use the
+  `CustomItemSignals.Save`/`NotifyUpdateFiles` postfixes, not sleeps.
+- **Export is not restricted to the worn item.** The UI's right-click action is "Save and export", and
+  its save half (`SaveCustomItem`) only makes sense for the item currently on the model, which is where
+  the "worn only" appearance comes from. `CustomItemRegistry.ExportCustomItem(model, ...)` takes any
+  `FileCustomItemModel` and re-writes that item's stored contents to the requested path, so a stored,
+  unworn custom item exports correctly (verified for Hairstyle Back and Outfit Bottoms).
+- **Custom-preset name is reset by an Overwrite.** The reusable `*.vroidcustomitem` takes its name from
+  the in-place model item (the category name, e.g. "Front"), so `OverwriteCustomItem`/`SaveAsNewCustomItem`
+  after a design session writes the wrong name; re-apply the rename *after* the write. `save_custom_preset`
+  / `haircustom save` therefore always re-apply a name — the requested one, else the preset's current
+  display name read before the write (`Presets.CustomItemName`). Without it an overwrite would silently
+  rename the user's preset to the category name. (An earlier version kept a per-CustomItemId map of the
+  name given at creation and preferred it; the item's own name is the single source of truth and avoids
+  resurrecting a name the user has since changed.)
+- **The engine's "newly saved" notice BLOCKS the editor close.** After the save prompt,
+  `NewlySavedCustomItemDialogUtil.NotifyNewlySaved` **awaits** a modal info dialog
+  (`"{0} will be saved as a new item."`). It is not a cosmetic popup: the `Exit` continuation — and so
+  a programmatic close — waits for a human to dismiss it, and the close reports `closed:false`. The
+  plugin answers it with `Task.CompletedTask` for a save it drove itself (see
+  `HairDesign.OnNotifyNewlySaved`) and reports the content as `close_design.save_notice`; a user-driven
+  save keeps the stock notice. Never leave this unpatched when closing programmatically.
+- **Closing must save only the edited category.** With "all" categories the engine calls
+  `SaveStashedAndSpecifiedWornTemporaryAsNewItems` and creates a **new** custom item for every category
+  it considers to have temporary updates (observed: Back/Extensions/Side/Ahoge junk presets, announced
+  by the notice above). `close_design`/`hairclose` therefore default to the current category's
+  `TransferableGroupType`; pass an explicit list to widen it.
+- **The design editor's category selector is the Hairstyle section's selector**
+  (`HairEditor.PresetsSelectorViewModel`). Switching the Hairstyle category while a session is open
+  drags the session onto that category (and can leave it with no editable groups). Hence the coverage
+  check — which needs the Base Hair tab — requires the session to be closed, and `save_custom_preset`
+  refuses while a session is open. A session also survives its close as pinned references, so "is a
+  session open" must be read from the screen's `IsActive`, not from the presence of the sub-editor VM.
+- **`IsEditable` is false for a merely hidden group** (it follows `ToggleHairGroupVisibility`), so a
+  hidden procedural group is still editable through the API even though the engine flag says otherwise.
+- **A curve's `SelectedCurveTemplateIndex` is stale after a custom `set_Curve`** (it is not cleared),
+  so it cannot be used for readback: match the current control points against each template's own curve
+  and report a template only on an exact match.
+- **`Procedural Parameters` semantics** (needed to design anything): `Position`/`Interval` are degrees
+  around the head seen from above — **`Position` 0 = front, 90 = the model's left, 180 = back,
+  270 = the model's right**, increasing towards the model's left. `Position` is the fan's *start*
+  edge and `Interval` sweeps from it towards the left, so the fan covers
+  **`[Position, Position + Interval]`** (a centred fringe of width *W* needs `Position = 360 - W/2`).
+  The frame is **global** (the same in every category). `Length` is a fraction of the guide measured
+  from the roots near the crown; it grows the strand forward/down, so a front group reaches the
+  forehead hairline at ≈0.3, the eye at ≈0.6 and below the chin at 1.0. `Center (X)`/`Center (Z)`
+  *translate* the whole fan laterally (+X = model's left) / front-to-back (+Z = forward); both are
+  ~head-sized, so ±1 is already off the head. One group is one fan of at most 20 hairs, so a full
+  element is 2-4 groups; a single wide fan is sparse and lets the underlying hair show through.
+  Full measured reference: [`hairstyle-design-manual.md`](hairstyle-design-manual.md). NB
+  `Arch of Hair Length = 0.5` exactly degenerates the geometry (bounds blow up, viewport empties).
+- **Coverage check via the Base Hair chromakey.** `Base Hair` is a *separate* section
+  (`Hairstyle/Base Hair/Main Color`, its own single colour, no hairstyle editing) that a non-base
+  hairstyle is supposed to cover - and it can be painted any colour. So painting it a key colour
+  (e.g. `#00FF00`) and counting key pixels from several angles is a direct "is the hairstyle
+  finished?" test. `haircoverage [threshold] [hex]` does it: set the key colour on `Base Hair`, shoot
+  front / three-quarter L+R / left / right / back / top, count key pixels, restore the colour.
+  Calibration: a full stock hairstyle ≈0.09% of the frame at its worst view, one custom Front over
+  the bare base hair ≈6.5% - so a threshold of ~0.3-0.5% cleanly separates finished from unfinished.
+- **`open_design` must SELECT the category**, not merely find it: the engine's
+  `IsCustomizableNonBaseHair` precondition follows the *current* category, so a stale current tab
+  makes the guard misfire ("not customizable" for a perfectly valid custom preset).
+- **The template's empty freehand guide** (0 strands) is removed automatically on `open_design` entry
+  (`HairGroups.RemoveEmptyFreehand`; `hairgroup cleanup` for a manual run): it is never procedurally
+  editable and only inflates the group list/counts.
+- **Per-group material (own colour).** A group's `Materials` parameter is a
+  `MaterialParameterViewModel` (`MaterialNodes`, `SelectedMaterial`); the engine's
+  `ActionHandler.DuplicateMaterial(SharedHairMaterialPath)` copies the shared material, and
+  `set_SelectedMaterial(node)` assigns the copy to the group, so one group can have its own colour.
+  The material's **own** colours are `MaterialColorNodeViewModel` nodes found by walking the material
+  node subtree (the base colour sits under a `Shader Color` subgroup; `Main Color`/`Highlight Color`
+  are `BaseColorNodeViewModel`s = the shared global ones), set with `set_MaterialColor(Color)`.
+  `hairgroup material [index] <hex>` does duplicate + assign + tint; verified that only that group's
+  strands change colour (`hairgroup material [index]` lists the materials).
+- **`CloneProceduralHairGroup` keeps the source's name and does not select the copy**, so a clone is
+  indistinguishable in the list; clone with an explicit new name (`hairgroup clone <index> <name>`).
+- **Categories are per part** (Front/Back/Side/Overall Hair/…); a group belongs to one category, so a
+  single "whole hairstyle" is edited in `Overall Hair` (or comes from a `Hairstyle Sets` preset),
+  while Front/Back/Side hold combinable parts.
+
 ## Color
 
 - The module is `VRoid.Studio.ColorSelection.*` (not TextureEditor). Category colors:
@@ -258,6 +462,22 @@ call the API, see `plugin/VroidStudioMcp/Editor/` and `docs/architecture.md`.
 
 - `GetType()` on a proxy gives the base/interface type; the real one — via the native class
   (`IL2CPP.il2cpp_object_get_class`) + `TryCast`.
+- **`Nullable<T>` model fields are misread and miswritten by the generated proxies.** A strand
+  `WidthScale` of ≈0.03 reads as `0` (and `HasValue` can read false when the native flag is 1); the
+  setter does not reach the native field. `il2cpp_field_get_value_object` throws for these value-type
+  fields, and the `IL2CPP.il2cpp_field_get_value` wrapper takes a `void*`. `Runtime/Il2CppNullable.cs`
+  therefore resolves `il2cpp_field_get_value`/`il2cpp_field_set_value` from `GameAssembly.dll` with
+  `NativeLibrary.TryGetExport` and calls them through an `IntPtr` delegate with a `Marshal` buffer
+  (layout: `bool hasValue` @0, `T value` @4; only 4-byte numeric/enum types are supported), so **no
+  `unsafe` is needed**. Use `Il2CppNullable.TryRead` (`NotNullable` / `Ok` / `Error`) and `TrySet` for
+  any nullable model field; the plain managed getter is not trustworthy, and a failed read must not
+  silently fall back to it. (`null` vs explicit `0` is a real distinction: most strand overrides are
+  null, but an explicit 0 is stored with `hasValue = 1`.)
+- **A freehand strand's `PositionOffset` does not keep an unset state through a rebuild.** The UI uses a
+  dedicated `ModifyBrushHairStrandPositionOffsetParameterCommand`; after the model rebuild an unset
+  value is resolved to an explicit `0`. The corpus can therefore contain `null` or `0` for
+  `PositionOffsetX/Y`; the writer treats `null` as inherit, and the round-trip comparator treats the two
+  as the same state for this field only.
 - Iterate collections via `Count`/`Item`/`ToArray` (not `IEnumerator.Current` → AV).
 - **The `.ctor` of proxies/base classes is not patched** ("Derived classes must provide an
   implementation"); patch the own ctors of concrete types or methods. The expected Il2CppInterop warning

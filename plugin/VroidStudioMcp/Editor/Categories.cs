@@ -76,4 +76,16 @@ public static class Categories
             if ((Get(c, "Name") as string) == name) return c;
         return null;
     }
+
+    /// <summary>Find the tab whose engine TransferableGroupType equals <paramref name="type"/>
+    /// (e.g. TransferableGroupType.N00.Level1.HairBack). Used to resolve an imported file's own
+    /// category instead of trusting the tab the caller happened to be on.</summary>
+    public static object FindTabByType(object sel, string type)
+    {
+        if (sel == null || string.IsNullOrEmpty(type)) return null;
+        foreach (var c in Enumerate(Get(Get(sel, "Categories"), "Children")))
+            if (string.Equals(Get(c, "TransferableGroupType") as string, type, StringComparison.OrdinalIgnoreCase))
+                return c;
+        return null;
+    }
 }

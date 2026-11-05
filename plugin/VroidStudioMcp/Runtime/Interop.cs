@@ -337,4 +337,39 @@ public static class Interop
         }
         catch (Exception e) { PluginLog.LogError($"{method} failed: {e.Message}"); return null; }
     }
+
+    /// <summary>Invoke an instance method, returning the exception message instead of swallowing it.</summary>
+    public static bool TryInvoke(object instance, string method, out object result, out string error, params object[] args)
+    {
+        result = null; error = null;
+        if (instance == null) { error = "object is null"; return false; }
+        try
+        {
+            var obj = RealObj(instance);
+            var cands = obj.GetType().GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                .Where(x => x.Name == method).ToList();
+            if (cands.Count == 0) { error = $"method '{method}' not found"; return false; }
+            var m = cands.FirstOrDefault(x => x.GetParameters().Length == args.Length) ?? cands[0];
+            result = m.Invoke(obj, args);
+            return true;
+        }
+        catch (Exception e) { error = e.Message; return false; }
+    }
+
+    /// <summary>Invoke a static method, returning the exception message instead of swallowing it.</summary>
+    public static bool TryInvokeStatic(Type type, string method, out object result, out string error, params object[] args)
+    {
+        result = null; error = null;
+        if (type == null) { error = "type is null"; return false; }
+        try
+        {
+            var cands = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                .Where(x => x.Name == method).ToList();
+            if (cands.Count == 0) { error = $"method '{method}' not found"; return false; }
+            var m = cands.FirstOrDefault(x => x.GetParameters().Length == args.Length) ?? cands[0];
+            result = m.Invoke(null, args);
+            return true;
+        }
+        catch (Exception e) { error = e.Message; return false; }
+    }
 }

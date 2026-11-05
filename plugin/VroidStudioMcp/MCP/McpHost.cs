@@ -68,7 +68,7 @@ public static class McpHost
         "item-specific Outfit sliders, clear presets, colours, camera, values, sessions - call help(topic) before guessing; " +
         "it is the detailed, authoritative reference. help() with no topic lists the topics.\n\n" +
         "TOOLS: state, status, sections, open, create, categories, enter, presets, preset_preview_list, preset_preview_range, select_preset, " +
-        "create_custom_preset, set_param, camera, screenshot, save, main_menu, exit, batch, help. " +
+        "create_custom_preset, import_custom_preset, export_custom_preset, set_param, camera, screenshot, save, main_menu, exit, batch, help. " +
         "Use batch for several ordered operations + captures in one call (it returns captured frames inline and accepts any " +
         "tool name, including help; each op takes named `arguments`, the same keys as tools/call). status is answered without " +
         "the main-thread queue, so it works while a command or batch runs. " +
@@ -112,6 +112,12 @@ public static class McpHost
                 "global (saved on disk) and show up in every model. Create one, named, with " +
                 "create_custom_preset(section, category, name) -> {id,name}; it is an empty template until it is\n" +
                 "designed in the hair design editor.\n" +
+                "- Custom-item files (*.vroidcustomitem; Hairstyle and Outfit only): " +
+                "import_custom_preset(section, category, path, name?, wear?) imports a file into the Custom tab " +
+                "(the category comes from the file; wear='now' applies it, 'later' (default) only adds it) and " +
+                "returns the new item; export_custom_preset(section, category, id, path, save?, overwrite?) " +
+                "exports the Custom-tab item at id. save=true (default) includes the worn item's current " +
+                "design; an unworn item is exported as stored.\n" +
                 "- has_clear_preset (in categories/enter): true means the tab has a Clear slot - selecting it " +
                 "removes the element entirely. When such a tab is currently empty, enter returns no parameters and " +
                 "needs_preset=true; after choosing any real preset the parameter set is identical for every preset. " +
@@ -1010,6 +1016,46 @@ public static class McpHost
                   ["category"] = P("string", "Category/tab name from categories()."),
                   ["name"] = P("string", "Meaningful identifier for the new custom preset (shown by presets())."),
               }),
+
+            T("import_custom_preset",
+              "Import a reusable custom item (*.vroidcustomitem) from a host path into the Custom tab of the " +
+              "matching Hairstyle or Outfit category. The target category is taken from the file, so a file " +
+              "imported from another tab in the same section lands in its own category (the result carries the " +
+              "actual category, plus requested_category when it differs). wear='now' applies the imported item " +
+              "to the model; wear='later' (default) only adds it to the library. name optionally renames the new " +
+              "item. Returns {imported, section, category, id, name, file, applied, wear_requested, type, " +
+              "count, renamed}. Blocking.",
+              new[] { "section", "category", "path", "name", "wear" }, new[] { "section", "category", "path" },
+              new()
+              {
+                  ["section"] = EnumSchema("Section label (Hairstyle or Outfit).", sections),
+                  ["category"] = P("string", "Category/tab name from categories()."),
+                  ["path"] = P("string", "Host path to a *.vroidcustomitem file (e.g. " + HostPathExample + ")."),
+                  ["name"] = P("string", "Optional name for the imported item."),
+                  ["wear"] = EnumSchema("Apply the imported item to the model now, or only add it to the library (default).", "now", "later"),
+              }),
+
+            T("export_custom_preset",
+              "Export a custom preset (a Custom-tab item, *.vroidcustomitem) from a Hairstyle or Outfit category " +
+              "to a host path. `id` is the preset id from presets(); the item may be worn or not. save=true " +
+              "(default) first saves the worn item's current design into its reusable file, so unsaved edits are " +
+              "included; for an unworn item that step is skipped (saved=false) and the stored file is exported " +
+              "as-is. save=false exports the stored file without touching the model. overwrite=false refuses to " +
+              "replace an existing file (default true). The .vroidcustomitem extension is appended when the path " +
+              "has none. Returns {exported, section, category, id, name, path, bytes, worn, saved, save_requested}. " +
+              "Blocking.",
+              new[] { "section", "category", "index", "path", "save", "overwrite" },
+              new[] { "section", "category", "index", "path" },
+              new()
+              {
+                  ["section"] = EnumSchema("Section label (Hairstyle or Outfit).", sections),
+                  ["category"] = P("string", "Category/tab name from categories()."),
+                  ["index"] = P("integer", "Preset id from presets() (kind 'custom')."),
+                  ["path"] = P("string", "Host path for the exported file ('.vroidcustomitem' is appended when the path has no extension)."),
+                  ["save"] = P("boolean", "Include the worn item's current design (default true; ignored for an unworn item)."),
+                  ["overwrite"] = P("boolean", "Replace an existing file at path (default true; false refuses instead of overwriting)."),
+              }),
+
 
             T("set_param",
               "Set one parameter of a category. Address it by its stable global 'path' from enter() " +

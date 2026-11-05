@@ -193,6 +193,20 @@ model.
   where `id` is the preset's continuous id in `presets` (custom items come first). A fresh item is an
   empty template (no strand geometry) until it is sculpted in the design editor. Creating does not
   apply the preset; use `select_preset` for that. Blocking.
+- `import_custom_preset(section, category, path, name?, wear?)` — import a reusable custom item
+  (`*.vroidcustomitem`) from a host path into the Custom tab of the matching Hairstyle or Outfit
+  category. The target category comes from the file, so a file imported from another tab in the same
+  section lands in its own category (`category` in the result, plus `requested_category` when they
+  differ). `name` optionally renames the new item. `wear` chooses whether the imported item is applied
+  to the model (`"now"`) or only added to the library (`"later"`, the default). Returns `{imported,
+  section, category, id, name, file, applied, wear_requested, type, count, renamed}`. Blocking.
+- `export_custom_preset(section, category, index, path, save?, overwrite?)` — export the Custom-tab
+  item with the `id` from `presets` to a `*.vroidcustomitem` file (the extension is appended when the
+  path has none). Hairstyle and Outfit only, and the item may be worn or not. `save=true` (default)
+  includes the worn item's current design in the exported file; for an unworn item that step is
+  skipped (`saved:false`) and the stored file is exported as-is. `save=false` exports the stored file
+  without touching the model. `overwrite=false` refuses to replace an existing file. Returns
+  `{exported, section, category, id, name, path, bytes, worn, saved, save_requested}`. Blocking.
 - `save [path]` — without a path, saves in place (`saved`); with a path, performs save-as
   (`MainActionHandler.SaveSync(path)`, no dialog) and returns the resolved path. Both variants are
   confirmed by a signal rather than a fixed pause (save-as: the file appears; in-place: the dirty flag

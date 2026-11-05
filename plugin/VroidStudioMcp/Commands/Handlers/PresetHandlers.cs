@@ -16,6 +16,22 @@ public static class PresetHandlers
     public static IEnumerator Custom(CommandDispatcher.Context ctx)
     {
         var action = (CommandUtil.Arg(ctx, 0) ?? "list").ToLowerInvariant();
+        if (action == "import" || action == "export")
+        {
+            // Same implementation as the public tool; only the argument positions differ.
+            string[] args = action == "import"
+                ? new[] { CommandUtil.Arg(ctx, 1), CommandUtil.Arg(ctx, 2), CommandUtil.Arg(ctx, 3), CommandUtil.Arg(ctx, 4), CommandUtil.Arg(ctx, 5) }
+                : new[] { CommandUtil.Arg(ctx, 1), CommandUtil.Arg(ctx, 2), CommandUtil.Arg(ctx, 3), CommandUtil.Arg(ctx, 4), CommandUtil.Arg(ctx, 5), CommandUtil.Arg(ctx, 6) };
+            var sub = new CommandDispatcher.Context
+            {
+                Method = action == "import" ? "import_custom_preset" : "export_custom_preset",
+                Args = args,
+            };
+            yield return action == "import" ? CustomItemHandlers.Import(sub) : CustomItemHandlers.Export(sub);
+            ctx.Result = sub.Result;
+            if (sub.Error != null) ctx.Error = sub.Error;
+            yield break;
+        }
         if (action == "list")
         {
             var section = CommandUtil.ResolveSectionArg(ctx, 1, "usage: haircustom list <section> <tab>");
@@ -144,7 +160,7 @@ public static class PresetHandlers
             ctx.Result = new Dictionary<string, object> { ["category"] = tab, ["tab"] = which };
             yield break;
         }
-        ctx.Error = "usage: haircustom [list <section> <tab> | select <section> <tab> <index> | create <section> <tab> | save|saveasnew <section> <tab> <index> | rename <section> <tab> <index> <name> | tab <section> <tab> <presets|custom>]";
+        ctx.Error = "usage: haircustom [list <section> <tab> | select <section> <tab> <index> | create <section> <tab> | save|saveasnew <section> <tab> <index> | import <section> <tab> <path> [name] [wear=now|later] | export <section> <tab> <index> <path> [save=true|false] [overwrite=true|false] | rename <section> <tab> <index> <name> | tab <section> <tab> <presets|custom>]";
     }
 
     public static IEnumerator List(CommandDispatcher.Context ctx) => ListPresets(ctx, false);

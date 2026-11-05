@@ -119,7 +119,8 @@ They write their own `*_result.json` reports. Registered names include `selftest
 `colortestall`, `haircolortest`, `basehairtest`, `eyetest`, `exittest`, `camtest`/`camwalk`/
 `camstate`, `mcptest`, `colorparse`, `hairglobal`/`hairclear`/`hairrestore`, `renderchange`,
 `sidebar`, `labeltest`, `createtest`, `previewtest`, `timescalefuzz`, `pathtest`, `apitest`
-(the last four, plus `labeltest`, do not need a model).
+(the last four, plus `labeltest`, do not need a model), and
+`customitemtest` (needs an open model).
 
 ### Testing rules
 

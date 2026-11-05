@@ -34,6 +34,10 @@ public static class Presets
         return PresetLabels.Get(resourceName, itemId) ?? resourceName ?? itemId;
     }
 
+    /// <summary>A custom item's current display name (what the preset is called right now).</summary>
+    public static string CustomItemName(object item)
+        => item == null ? null : (Get(item, "DisplayName") as string ?? TryGetLabel(item));
+
     /// <summary>Custom items of a category ("Custom" sub-tab): the saved user-created presets. They
     /// live on <c>PresetCategoryViewModel.CustomItemOptions</c> (backing field <c>_customItems</c>),
     /// not in the stock <c>PresetOptions</c>; the registry stores them as *.vroidcustomitem files.</summary>
@@ -142,6 +146,20 @@ public static class Presets
     {
         var items = Get(presetCategoryNode, "_customItems") ?? Get(presetCategoryNode, "CustomItemOptions");
         return Enumerate(items).ElementAtOrDefault(index);
+    }
+
+    /// <summary>Raw position of a saved custom item inside <c>_customItems</c> (the list that also
+    /// holds the Create New / Import tiles), i.e. the index <see cref="CustomItemAt"/> expects.</summary>
+    public static int CustomItemRawIndex(object presetCategoryNode, object item)
+    {
+        if (presetCategoryNode == null || item == null) return -1;
+        int i = 0;
+        foreach (var o in Enumerate(Get(presetCategoryNode, "_customItems") ?? Get(presetCategoryNode, "CustomItemOptions")))
+        {
+            if (ReferenceEquals(o, item)) return i;
+            i++;
+        }
+        return -1;
     }
 
     /// <summary>The saved custom items (excludes the Create New / Import tiles), in display order.</summary>
