@@ -21,7 +21,7 @@ using static VroidStudioMcp.Hooks;
 
 namespace VroidStudioMcp;
 
-[BepInPlugin("com.kokokoshka.vroidstudiomcp", "VRoid Studio MCP", "1.0.0")]
+[BepInPlugin("com.kokokoshka.vroidstudiomcp", "VRoid Studio MCP", "1.1.0")]
 public class Plugin : BasePlugin
 {
     internal static Harmony Harmony;
@@ -37,7 +37,7 @@ public class Plugin : BasePlugin
         ServerSettings.Load();
         PresetLabels.Reload();
         PluginLog.LogInfo($"labels: {PresetLabels.Count} from {PresetLabels.Files.Count} file(s) in {PresetLabels.Dir}");
-        PluginLog.LogInfo("VroidStudioMcp v1.0.0 loading...");
+        PluginLog.LogInfo("VroidStudioMcp v1.1.0 loading...");
         Harmony = new Harmony("com.kokokoshka.vroidstudiomcp");
         MessagesI18n.Install();
         RenderQuality.Install();
