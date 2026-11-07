@@ -479,6 +479,16 @@ call the API, see `plugin/VroidStudioMcp/Editor/` and `docs/architecture.md`.
   `PositionOffsetX/Y`; the writer treats `null` as inherit, and the round-trip comparator treats the two
   as the same state for this field only.
 - Iterate collections via `Count`/`Item`/`ToArray` (not `IEnumerator.Current` → AV).
+- **A native array can arrive as `IReadOnlyCollection<T>`.** On VRoid Studio 2.16.0,
+  `PresetCategoryViewModel._customItems` is exposed through that interface while its native type
+  is `IOptionViewModel[]`. The interface proxy has `Count` but no indexer, and the native array
+  name has no generated proxy for `RealObj` to resolve. List-only enumeration silently returns
+  zero entries, hiding saved custom items and the Add/Import tiles. `EnumerateList` checks the
+  native rank and element type, then reads one-dimensional reference arrays through
+  `Il2CppReferenceArray<T>`. It never wraps a value-type or multidimensional array this way.
+  `enumerationtest` covers array-backed and list-backed interfaces, order/null preservation,
+  direct and empty arrays; `customcollectiontest` checks the real Outfit/Dresses and
+  Hairstyle/Back Add/Import tiles. The latter needs a model and does not change the library.
 - **The `.ctor` of proxies/base classes is not patched** ("Derived classes must provide an
   implementation"); patch the own ctors of concrete types or methods. The expected Il2CppInterop warning
   (`Failed to init IL2CPP patch backend … using normal patch handlers`) is selectively

@@ -41,6 +41,8 @@ public static class TestRunner
         ["sidebar"] = () => new SidebarTest(),
         ["thumbnaildirect"] = () => new ThumbnailDirectTest(),
         ["customitemtest"] = () => new CustomItemTest(),
+        ["customcollectiontest"] = () => new CustomCollectionTest(),
+        ["enumerationtest"] = () => new EnumerationTest(),
     };
 
     public static VroidTest Create(string name, string path)

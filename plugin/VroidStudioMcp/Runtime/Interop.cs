@@ -125,6 +125,31 @@ public static class Interop
 
         const BindingFlags BF = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
+        // IReadOnlyCollection<T> can wrap a native T[] with no indexer on its proxy. The native
+        // array type has no generated proxy for RealObj to find; read it through the array wrapper.
+        if (o is Il2CppObjectBase nativeArray)
+        {
+            var elem = FirstGenericArg(o.GetType());
+            if (elem != null && typeof(Il2CppObjectBase).IsAssignableFrom(elem))
+            {
+                try
+                {
+                    var klass = IL2CPP.il2cpp_object_get_class(nativeArray.Pointer);
+                    var elementClass = IL2CPP.il2cpp_class_get_element_class(klass);
+                    if (IL2CPP.il2cpp_class_get_rank(klass) == 1 && elementClass != IntPtr.Zero
+                        && !IL2CPP.il2cpp_class_is_valuetype(elementClass))
+                    {
+                        var arrayType = typeof(Il2CppReferenceArray<>).MakeGenericType(elem);
+                        var array = arrayType.GetConstructor(new[] { typeof(IntPtr) })
+                            ?.Invoke(new object[] { nativeArray.Pointer });
+                        var values = array == null ? null : IndexedRead(array, BF);
+                        if (values != null) return values;
+                    }
+                }
+                catch { }
+            }
+        }
+
         // strategy 0: re-wrap il2cpp generic collection into its concrete List<T> proxy
         if (o is Il2CppObjectBase)
         {
