@@ -73,7 +73,7 @@ public static class Sections
             var modeType = FindType("VRoid.Studio.EditRootScreen.EditMode");
             var m = Enum.Parse(modeType, resolved);
             Invoke(_editRootVm, "set_EditMode", m);
-            PluginLog.LogWarning($"switch->{resolved}");
+            PluginLog.LogDebug($"switch->{resolved}");
         }
         catch (Exception e) { PluginLog.LogError($"switch {mode} failed: {e.Message}"); }
     }

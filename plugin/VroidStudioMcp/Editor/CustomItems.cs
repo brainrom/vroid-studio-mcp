@@ -137,7 +137,7 @@ public static class CustomItems
             }
         }
         catch (Exception e) { PluginLog.LogError($"import dialog: {e.Message}"); }
-        PluginLog.LogWarning($"import: answered the 'Imported successfully' dialog immediately " +
+        PluginLog.LogDebug($"import: answered the 'Imported successfully' dialog immediately " +
                              $"({(wear ? "Wear now" : "Wear later")})");
         return false;
     }

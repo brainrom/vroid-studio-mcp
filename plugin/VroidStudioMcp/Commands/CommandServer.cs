@@ -23,7 +23,7 @@ public static class CommandServer
 
     public static void Start()
     {
-        if (!ServerSettings.Enabled) { PluginLog.LogWarning("command server: disabled"); return; }
+        if (!ServerSettings.Enabled) { PluginLog.LogInfo("command server: disabled"); return; }
         if (!ServerSettings.TryParse(ServerSettings.TcpAddress, out var host, out var port))
         { PluginLog.LogError($"command server: bad address '{ServerSettings.TcpAddress}'"); return; }
         try
@@ -33,7 +33,7 @@ public static class CommandServer
             _listener.Start();
             _running = true;
             new Thread(() => AcceptLoop(_listener)) { IsBackground = true }.Start();
-            PluginLog.LogWarning($"command server: {host}:{port} (text + json-rpc)");
+            PluginLog.LogInfo($"command server: {host}:{port} (text + json-rpc)");
         }
         catch (Exception e) { PluginLog.LogError($"command server failed: {e.Message}"); }
     }

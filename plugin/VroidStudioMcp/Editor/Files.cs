@@ -38,7 +38,7 @@ public static class FileOps
         {
             if (_mainViewModel == null) { PluginLog.LogError("create: MainViewModel not captured yet"); return; }
             Invoke(_mainViewModel, "InitializeCurrentFileAndMoveToEditRoot", presetPattern, modelVariantType);
-            PluginLog.LogWarning($"create: {presetPattern} / {modelVariantType}");
+            PluginLog.LogDebug($"create: {presetPattern} / {modelVariantType}");
         }
         catch (Exception e) { PluginLog.LogError($"create failed: {e.Message}"); }
     }
@@ -53,7 +53,7 @@ public static class FileOps
                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
             if (m == null) { PluginLog.LogError("open: ImportFileAndMoveToEditRoot not found"); return; }
             m.Invoke(obj, new object[] { p, false, false });
-            PluginLog.LogWarning($"open: {p}");
+            PluginLog.LogDebug($"open: {p}");
         }
         catch (Exception e) { PluginLog.LogError($"open failed: {e.Message}"); }
     }

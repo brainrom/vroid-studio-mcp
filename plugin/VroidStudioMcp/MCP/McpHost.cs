@@ -223,7 +223,7 @@ public static class McpHost
 
     public static void Start()
     {
-        if (!ServerSettings.Enabled) { PluginLog.LogWarning("mcp: disabled"); return; }
+        if (!ServerSettings.Enabled) { PluginLog.LogInfo("mcp: disabled"); return; }
         if (!ServerSettings.TryParse(ServerSettings.McpAddress, out var host, out var port))
         { PluginLog.LogError($"mcp: bad address '{ServerSettings.McpAddress}'"); return; }
         try
@@ -237,7 +237,7 @@ public static class McpHost
             _listener.Start();
             _running = true;
             new Thread(() => AcceptLoop(_listener)) { IsBackground = true }.Start();
-            PluginLog.LogWarning($"mcp: {prefix}");
+            PluginLog.LogInfo($"mcp: {prefix}");
         }
         catch (Exception e) { PluginLog.LogError($"mcp start failed: {e.Message}"); }
     }

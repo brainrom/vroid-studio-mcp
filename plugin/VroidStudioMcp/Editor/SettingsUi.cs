@@ -123,7 +123,7 @@ public static class SettingsUi
 
     private static InputField _nativeInputTemplate;
 
-    public static void OnDialogInit(object __instance) { if (__instance != null) { Dialog = __instance; PluginLog.LogWarning("settings ui: dialog captured"); } }
+    public static void OnDialogInit(object __instance) { if (__instance != null) { Dialog = __instance; PluginLog.LogDebug("settings ui: dialog captured"); } }
     public static void OnAccount(object __instance) { if (__instance != null) AccountVm = __instance; }
     public static void OnAccountIconView(object __instance) { if (__instance != null) AccountIconView = __instance; }
 
@@ -188,7 +188,7 @@ public static class SettingsUi
         var descSrc = FindTextContaining(body, "This setting is for using VRoid Studio");
         var labelSrc = FindTextByContent(body, "High") ?? FindTextByContent(body, "English");
         var inputSrc = FindNativeInput(body) ?? _nativeInputTemplate;
-        PluginLog.LogWarning($"settings ui: sources title={titleSrc != null} desc={descSrc != null} label={labelSrc != null} input={(inputSrc != null ? inputSrc.gameObject.name : "none")}");
+        PluginLog.LogDebug($"settings ui: sources title={titleSrc != null} desc={descSrc != null} label={labelSrc != null} input={(inputSrc != null ? inputSrc.gameObject.name : "none")}");
 
         var go = NewRect("VroidStudioMcpSection", body, layer, new Vector2(392f, 200f), Vector2.zero);
         var le = go.AddComponent<LayoutElement>();
@@ -230,7 +230,7 @@ public static class SettingsUi
 
         Canvas.ForceUpdateCanvases();
         LayoutRebuilder.ForceRebuildLayoutImmediate(body);
-        PluginLog.LogWarning($"settings ui: section built (toggle={toggle != null} tcp={tcpField != null} mcp={mcpField != null})");
+        PluginLog.LogDebug($"settings ui: section built (toggle={toggle != null} tcp={tcpField != null} mcp={mcpField != null})");
     }
 
     private static Text CloneText(Transform parent, Text src, Font fallbackFont, Material fallbackMat,
@@ -315,13 +315,13 @@ public static class SettingsUi
 
     private static void OnEnabledChanged(bool value)
     {
-        try { ServerSettings.SetEnabled(value); PluginLog.LogWarning($"settings ui: enabled={value}"); }
+        try { ServerSettings.SetEnabled(value); PluginLog.LogDebug($"settings ui: enabled={value}"); }
         catch (Exception e) { PluginLog.LogError($"settings ui toggle: {e.Message}"); }
     }
 
     private static void OnTcpEdit(string value)
     {
-        if (ServerSettings.SetTcpAddress(value)) PluginLog.LogWarning($"settings ui: tcp={ServerSettings.TcpAddress}");
+        if (ServerSettings.SetTcpAddress(value)) PluginLog.LogDebug($"settings ui: tcp={ServerSettings.TcpAddress}");
         else
         {
             PluginLog.LogWarning($"settings ui: invalid tcp address '{value}'");
@@ -331,7 +331,7 @@ public static class SettingsUi
 
     private static void OnMcpEdit(string value)
     {
-        if (ServerSettings.SetMcpAddress(value)) PluginLog.LogWarning($"settings ui: mcp={ServerSettings.McpAddress}");
+        if (ServerSettings.SetMcpAddress(value)) PluginLog.LogDebug($"settings ui: mcp={ServerSettings.McpAddress}");
         else
         {
             PluginLog.LogWarning($"settings ui: invalid mcp address '{value}'");
@@ -378,7 +378,7 @@ public static class SettingsUi
                     field.text = value;
                     if (onEnd != null) field.onEndEdit.AddListener(onEnd);
                     CacheNativeInputTemplate(src);
-                    PluginLog.LogWarning($"settings ui: cloned native input '{src.gameObject.name}'");
+                    PluginLog.LogDebug($"settings ui: cloned native input '{src.gameObject.name}'");
                     return field;
                 }
             }
@@ -451,7 +451,7 @@ public static class SettingsUi
             var clone = UnityEngine.Object.Instantiate(src.gameObject, holder.transform);
             clone.SetActive(false);
             _nativeInputTemplate = clone.GetComponent<InputField>();
-            PluginLog.LogWarning("settings ui: cached native input template");
+            PluginLog.LogDebug("settings ui: cached native input template");
         }
         catch (Exception e) { PluginLog.LogError($"settings ui: cache input: {e.Message}"); }
     }
@@ -501,12 +501,12 @@ public static class SettingsUi
                 var n = go.name;
                 if (n.StartsWith("VroidStudioMcp") || n == "EnableToggle") continue;
                 if (n.IndexOf("CheckBox", StringComparison.OrdinalIgnoreCase) < 0) continue;
-                if (go.activeInHierarchy) { PluginLog.LogWarning($"settings ui: native checkbox '{n}'"); return t; }
+                if (go.activeInHierarchy) { PluginLog.LogDebug($"settings ui: native checkbox '{n}'"); return t; }
                 fallback ??= t;
             }
         }
         catch (Exception e) { PluginLog.LogError($"settings ui: find checkbox: {e.Message}"); }
-        if (fallback != null) PluginLog.LogWarning($"settings ui: native checkbox (inactive) '{fallback.gameObject.name}'");
+        if (fallback != null) PluginLog.LogDebug($"settings ui: native checkbox (inactive) '{fallback.gameObject.name}'");
         return fallback;
     }
 
@@ -529,7 +529,7 @@ public static class SettingsUi
         var sb = new StringBuilder();
         Walk(root, 0, sb);
         File.WriteAllText(path, sb.ToString());
-        PluginLog.LogWarning($"settings ui: dumped {path}");
+        PluginLog.LogDebug($"settings ui: dumped {path}");
     }
 
     private static void Walk(Transform t, int depth, StringBuilder sb)

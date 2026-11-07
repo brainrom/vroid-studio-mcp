@@ -179,7 +179,7 @@ public static class SessionHandlers
             if (_editRootVm != null) Invoke(_editRootVm, "Save");
             if (!string.IsNullOrEmpty(savePath)) yield return CommandUtil.WaitUntil(() => !FileOps.IsUnsaved(), 20f);
             else yield return CommandUtil.Pause(0.5f);
-            PluginLog.LogWarning($"exit save: path='{savePath}' wasDirty={wasDirty} dirtyAfter={FileOps.IsUnsaved()}");
+            PluginLog.LogDebug($"exit save: path='{savePath}' wasDirty={wasDirty} dirtyAfter={FileOps.IsUnsaved()}");
         }
         ctx.Result = mode;
         FileOps.QuitClean();
