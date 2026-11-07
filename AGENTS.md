@@ -122,9 +122,10 @@ They write their own `*_result.json` reports. Registered names include `selftest
 (the last four, plus `labeltest`, do not need a model), and
 `customitemtest` (needs an open model).
 
-`enumerationtest` needs no model and checks native array/list collection interfaces.
-`customcollectiontest <path.vroid>` checks Add/Import discovery in the real custom libraries
-without creating or deleting items.
+`enumerationtest` needs no model and checks native array/list collection interfaces through both
+the managed rewrap and the forced native fallback. `customcollectiontest <path.vroid>` checks
+Add/Import discovery in the real custom libraries, once normally and once with the native fallback
+forced, without creating or deleting items.
 
 ### Testing rules
 

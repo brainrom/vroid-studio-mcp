@@ -479,16 +479,21 @@ call the API, see `plugin/VroidStudioMcp/Editor/` and `docs/architecture.md`.
   `PositionOffsetX/Y`; the writer treats `null` as inherit, and the round-trip comparator treats the two
   as the same state for this field only.
 - Iterate collections via `Count`/`Item`/`ToArray` (not `IEnumerator.Current` → AV).
-- **A native array can arrive as `IReadOnlyCollection<T>`.** On VRoid Studio 2.16.0,
-  `PresetCategoryViewModel._customItems` is exposed through that interface while its native type
-  is `IOptionViewModel[]`. The interface proxy has `Count` but no indexer, and the native array
-  name has no generated proxy for `RealObj` to resolve. List-only enumeration silently returns
-  zero entries, hiding saved custom items and the Add/Import tiles. `EnumerateList` checks the
-  native rank and element type, then reads one-dimensional reference arrays through
-  `Il2CppReferenceArray<T>`. It never wraps a value-type or multidimensional array this way.
-  `enumerationtest` covers array-backed and list-backed interfaces, order/null preservation,
-  direct and empty arrays; `customcollectiontest` checks the real Outfit/Dresses and
-  Hairstyle/Back Add/Import tiles. The latter needs a model and does not change the library.
+- **A native array can arrive as `IReadOnlyCollection<T>`.** The interface proxy exposes `Count`
+  but no indexer, and the native array class name has no generated proxy for `RealObj` to
+  resolve; list/indexer/ToArray enumeration alone therefore returns zero entries. This hides
+  saved custom items and the Add/Import tiles on 2.14 and 2.16
+  (`PresetCategoryViewModel._customItems` is a native `IOptionViewModel[]`). `EnumerateList`
+  therefore tries the managed `List<T>` and `Il2CppReferenceArray<T>` rewraps, the proxy indexer
+  and `ToArray()`, and only then reads a one-dimensional reference array through
+  `Il2CppReferenceArray<T>` as a last resort. The fallback checks the native rank, rejects
+  value-type/multidimensional arrays and requires the native element class to be assignable to
+  the proxy's generic argument, so covariance works but a wrong `FirstGenericArg` guess is
+  refused. `enumerationtest` covers array/list-backed interfaces, order/null preservation,
+  direct/empty arrays, covariance and a deliberately mismatched interface, once through the
+  managed rewrap and once with the native fallback forced; `customcollectiontest` checks the real
+  Outfit/Dresses and Hairstyle/Back Add/Import tiles and repeats the discovery with the native
+  fallback forced. The latter needs a model and does not change the library.
 - **The `.ctor` of proxies/base classes is not patched** ("Derived classes must provide an
   implementation"); patch the own ctors of concrete types or methods. The expected Il2CppInterop warning
   (`Failed to init IL2CPP patch backend … using normal patch handlers`) is selectively
