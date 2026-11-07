@@ -3,6 +3,17 @@
 This document lists engine behaviours that are **not** obvious from the `Editor/` code. For how to
 call the API, see `plugin/VroidStudioMcp/Editor/` and `docs/architecture.md`.
 
+## Runtime diagnostics
+
+Routine hook, category, command, color-selection, preview-RT and screenshot traces are emitted
+at Info level only when `debug_artifacts=true` in `servers.json`. Keep Info enabled in the
+BepInEx log levels to collect them. These messages describe successful operations; actual
+warnings and errors keep their existing levels and remain independent of this flag.
+
+The external render suite deliberately opens a malformed model and attempts an invalid save.
+Those negative tests can produce Unity exceptions even when the suite passes; distinguish
+them from failures during normal editing when reviewing a test-session log.
+
 ## Readiness and synchronization
 
 - **"Model loaded"** = `VRoidCoreModelUpdater.set_IsUpdatingModel` true→false.
@@ -22,6 +33,11 @@ call the API, see `plugin/VroidStudioMcp/Editor/` and `docs/architecture.md`.
   `timescalefuzz` (does not require a model): it manually drives waits under `timeScale=0` with a watchdog.
 
 ## Background/minimized window
+
+- **Windows console selection can pause the app.** If the BepInEx console title starts with
+  `Select`, press Escape in that console to leave text selection before diagnosing a stalled
+  command. Keep disk logging enabled when collecting evidence; the optional production config
+  disables the console.
 
 - **The plugin forcibly keeps `Application.runInBackground = true`** (the app itself turns it off via
   `RunInBackgroundUtil`), so the main-thread command queue does not stall when the window is out of focus or

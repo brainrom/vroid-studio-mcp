@@ -128,7 +128,7 @@ public static class Screenshot
             UnityEngine.Object.Destroy(tex);
             var kind = !temporary ? "preview-rt" : (cameraRender ? "camera-rt" : "temp-rt");
             var exists = writeFiles && File.Exists(Path.Combine(BepInEx.Paths.GameRootPath, "screenshot.png"));
-            PluginLog.LogWarning($"screenshot captured ({w}x{h}) [{kind}] write={writeFiles} exists={exists} root={BepInEx.Paths.GameRootPath}");
+            PluginLog.LogTrace($"screenshot captured ({w}x{h}) [{kind}] write={writeFiles} exists={exists} root={BepInEx.Paths.GameRootPath}");
         }
         catch (Exception e) { PluginLog.LogError($"screenshot failed: {e}"); }
     }
@@ -162,7 +162,7 @@ public static class Screenshot
             if (writeFile && png != null)
                 File.WriteAllBytes(Path.Combine(BepInEx.Paths.GameRootPath, "ui_screenshot.png"), png);
             _lastUiPng = png;
-            PluginLog.LogWarning($"ui screenshot captured ({w}x{h}) write={writeFile} bytes={(png != null ? png.Length : 0)}");
+            PluginLog.LogTrace($"ui screenshot captured ({w}x{h}) write={writeFile} bytes={(png != null ? png.Length : 0)}");
             return png;
         }
         catch (Exception e) { PluginLog.LogError($"full window capture failed: {e}"); return null; }

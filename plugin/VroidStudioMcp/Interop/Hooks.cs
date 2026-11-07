@@ -221,7 +221,7 @@ public static class Hooks
             if (method == "set_EditMode")
             {
                 var sec = FormatArg(First(__args));
-                if (sec != _lastSectionLog) { _lastSectionLog = sec; PluginLog.LogWarning($">>> SECTION {sec}"); }
+                if (sec != _lastSectionLog) { _lastSectionLog = sec; PluginLog.LogTrace($">>> SECTION {sec}"); }
                 return;
             }
             if (method == "set_IsSelectedCategory")
@@ -230,14 +230,14 @@ public static class Hooks
                 if (FormatArg(First(__args)) == "True")
                 {
                     var cs = CategoryStr(__instance);
-                    if (cs != _lastCategoryLog) { _lastCategoryLog = cs; PluginLog.LogWarning($">>> CATEGORY {cs}"); }
+                    if (cs != _lastCategoryLog) { _lastCategoryLog = cs; PluginLog.LogTrace($">>> CATEGORY {cs}"); }
                 }
                 return;
             }
             if (method == "set_SelectedCategory")
             {
                 var cs = CategoryStr(First(__args));
-                if (cs != _lastCategoryLog) { _lastCategoryLog = cs; PluginLog.LogWarning($">>> CATEGORY {cs}"); }
+                if (cs != _lastCategoryLog) { _lastCategoryLog = cs; PluginLog.LogTrace($">>> CATEGORY {cs}"); }
                 return;
             }
             // entering / leaving the edit root drives "a model is being edited"
@@ -255,25 +255,25 @@ public static class Hooks
                 // The colour-VM registry roots per-session objects; reset it so they can be collected.
                 ColorRegistry.Clear();
                 Catalog.ResetDumps();
-                PluginLog.LogWarning(">>> BACK TO MODEL SELECT");
+                PluginLog.LogTrace(">>> BACK TO MODEL SELECT");
                 return;
             }
             // engine edit/command path (this is where combined-parameter edits actually happen)
             if (method == "ExecuteSyncCommand")
             {
-                PluginLog.LogWarning($">>> COMMAND {FormatArg(First(__args))}");
+                PluginLog.LogTrace($">>> COMMAND {FormatArg(First(__args))}");
                 return;
             }
             // preset selection / clear
             if (method == "LoadAndReplaceTransferableGroup")
             {
                 var rem = (__args != null && __args.Length > 1) ? SafeStr(__args[1]) : "";
-                PluginLog.LogWarning($">>> PRESET load group={SafeStr(First(__args))} remove=[{rem}]");
+                PluginLog.LogTrace($">>> PRESET load group={SafeStr(First(__args))} remove=[{rem}]");
                 return;
             }
             if (method == "ClearTransferableGroup")
             {
-                PluginLog.LogWarning(">>> PRESET clear");
+                PluginLog.LogTrace(">>> PRESET clear");
                 return;
             }
             // bulk update (called for every category) and value setters logged elsewhere
@@ -289,7 +289,7 @@ public static class Hooks
             if (label != null) sb.Append(" [").Append(label).Append(']');
             if (__args != null && __args.Length > 0)
                 sb.Append('(').Append(string.Join(", ", __args.Select(FormatArg))).Append(')');
-            PluginLog.LogWarning(sb.ToString());
+            PluginLog.LogTrace(sb.ToString());
         }
         catch (Exception e) { PluginLog.LogError($"hook log error: {e.Message}"); }
     }
@@ -297,7 +297,7 @@ public static class Hooks
     {
         if (__instance == null) return;
         _mainViewModel = __instance;
-        PluginLog.LogWarning($"MainViewModel captured: {TypeName(__instance)}");
+        PluginLog.LogTrace($"MainViewModel captured: {TypeName(__instance)}");
     }
     public static string CurrentValue(object instance)
     {
@@ -334,7 +334,7 @@ public static class Hooks
             if (isRefresh)
                 PluginLog.LogDebug($">>> PARAM[REFRESH] {shortType} [{label}] {oldv} -> {newv}");
             else
-                PluginLog.LogWarning($">>> PARAM[EDIT] {shortType} [{label}] {oldv} -> {newv}");
+                PluginLog.LogTrace($">>> PARAM[EDIT] {shortType} [{label}] {oldv} -> {newv}");
         }
         catch { }
     }
@@ -343,7 +343,7 @@ public static class Hooks
     public static void OnCameraController(object __instance)
     {
         if (__instance == null) return;
-        if (_cameraController == null) PluginLog.LogWarning($"camera controller captured: {TypeName(__instance)}");
+        if (_cameraController == null) PluginLog.LogTrace($"camera controller captured: {TypeName(__instance)}");
         _cameraController = __instance;
     }
     public static void OnColorSel(object __instance, object[] __args)
@@ -360,7 +360,7 @@ public static class Hooks
             // The live hair VM is whichever instance the editor just used; remember it so the
             // panel-active signal and the colour setter always refer to the same object.
             if (t.EndsWith("HairEditor.ViewModel")) _colorHairVm = __instance;
-            PluginLog.LogWarning($"COLORSEL {tn} name={ls} color={cs} arg={as_}");
+            PluginLog.LogTrace($"COLORSEL {tn} name={ls} color={cs} arg={as_}");
         }
         catch { }
     }
