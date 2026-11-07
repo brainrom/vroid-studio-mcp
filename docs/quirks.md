@@ -6,7 +6,7 @@ call the API, see `plugin/VroidStudioMcp/Editor/` and `docs/architecture.md`.
 ## Runtime diagnostics
 
 Routine hook, category, command, color-selection, camera, file, preview-RT and screenshot
-traces use Debug. Enable `Debug` in `[Logging.Console]` and/or `[Logging.Disk] `LogLevels`
+traces use Debug. Enable `Debug` in `[Logging.Console]` and/or `[Logging.Disk]` `LogLevels`
 in `BepInEx.cfg` (and enable the corresponding listener) to collect them. Listener startup
 messages use Info; actual warnings and errors retain their levels.
 
