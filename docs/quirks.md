@@ -3,6 +3,22 @@
 This document lists engine behaviours that are **not** obvious from the `Editor/` code. For how to
 call the API, see `plugin/VroidStudioMcp/Editor/` and `docs/architecture.md`.
 
+## Runtime diagnostics
+
+Routine hook, category, command, color-selection, camera, file, preview-RT and screenshot
+traces use Debug. Enable `Debug` in `[Logging.Console]` and/or `[Logging.Disk]` `LogLevels`
+in `BepInEx.cfg` (and enable the corresponding listener) to collect them. Listener startup
+messages use Info; actual warnings and errors retain their levels.
+
+`param_trace` enables the expensive per-setter trace and writes `param_trace.log`.
+Per-setter diagnostics also run when a BepInEx listener accepts Debug; both `PARAM[EDIT]`
+and `PARAM[REFRESH]` use Debug. `dump_artifacts` writes catalogs and `ui_events.jsonl`,
+not the parameter trace. The removed `debug_artifacts` key is ignored.
+
+The external render suite deliberately opens a malformed model and attempts an invalid save.
+Those negative tests can produce Unity exceptions even when the suite passes; distinguish
+those expected exceptions from failures during normal editing.
+
 ## Readiness and synchronization
 
 - **"Model loaded"** = `VRoidCoreModelUpdater.set_IsUpdatingModel` true→false.
@@ -22,6 +38,11 @@ call the API, see `plugin/VroidStudioMcp/Editor/` and `docs/architecture.md`.
   `timescalefuzz` (does not require a model): it manually drives waits under `timeScale=0` with a watchdog.
 
 ## Background/minimized window
+
+- **Windows console selection can pause the app.** If the BepInEx console title starts with
+  `Select`, press Escape in that console to leave text selection before diagnosing a stalled
+  command. Keep disk logging enabled when collecting evidence; the optional production config
+  disables the console.
 
 - **The plugin forcibly keeps `Application.runInBackground = true`** (the app itself turns it off via
   `RunInBackgroundUtil`), so the main-thread command queue does not stall when the window is out of focus or

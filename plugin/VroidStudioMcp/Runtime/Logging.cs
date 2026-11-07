@@ -47,7 +47,7 @@ public static class Logging
         {
             var path = Path.Combine(BepInEx.Paths.GameRootPath, name);
             File.WriteAllText(path, MiniJson.Serialize(payload, true), Utf8);
-            PluginLog.LogWarning($"written {path}");
+            PluginLog.LogDebug($"written {path}");
         }
         catch (Exception e) { PluginLog.LogError($"write {name} failed: {e.Message}"); }
     }

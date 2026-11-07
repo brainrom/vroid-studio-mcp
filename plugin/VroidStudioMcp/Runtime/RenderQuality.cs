@@ -77,7 +77,7 @@ public static class RenderQuality
             if (key != _lastLog)
             {
                 _lastLog = key;
-                PluginLog.LogWarning($"quality preview RT {rt.width}x{rt.height} fmt={rt.format} depth={rt.depth} aa={rt.antiAliasing} scale={scale}");
+                PluginLog.LogDebug($"quality preview RT {rt.width}x{rt.height} fmt={rt.format} depth={rt.depth} aa={rt.antiAliasing} scale={scale}");
             }
         }
         catch (Exception e) { PluginLog.LogError($"quality RT failed: {e.Message}"); }
