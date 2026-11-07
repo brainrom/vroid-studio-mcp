@@ -22,16 +22,18 @@ public static class ServerSettings
     internal static string McpAddress { get; private set; } = DefaultMcp;
     // Exposes developer-only MCP tools (currently ui_screenshot: full window incl. native UI).
     internal static bool DevTools { get; private set; } = false;
-    // Verbose runtime diagnostics in the log (e.g. PARAM[EDIT/REFRESH]); no files written.
-    internal static bool DebugArtifacts { get; private set; } = false;
+    // Per-setter trace: writes <app root>/param_trace.log (EDIT/REFRESH lines) and, when Debug is in
+    // the BepInEx LogLevels, logs the same lines at Debug. It reflects on every value setter, so it is
+    // expensive; off by default.
+    internal static bool ParamTrace { get; private set; } = false;
     // Writes diagnostic artifacts to the app root (catalog_*.json, category_catalog.json,
-    // catalog_params.json, ui_events.jsonl, param_trace.log). Only needed when re-verifying a new
-    // editor build; off by default so the working folder stays clean.
+    // catalog_params.json, ui_events.jsonl). Only needed when re-verifying a new editor build; off by
+    // default so the working folder stays clean.
     internal static bool DumpArtifacts { get; private set; } = false;
     // Devtool for dialog tracking: traces every engine dialog the plugin sees (DialogProviderViewModel
     // Show/ShowNotification/Dismiss) and every custom-item save prompt that was NOT intercepted, to
-    // <app root>/dialog_trace.log. Independent of the two artifact flags (it is neither a catalog dump
-    // nor verbose param logging); off by default.
+    // <app root>/dialog_trace.log. Independent of the artifact flags (it is neither a catalog dump
+    // nor a param trace); off by default.
     internal static bool DialogTrace { get; private set; } = false;
     // Hard upper bound on one `batch` call's operation count (0 = unlimited). A guard against absurd
     // requests; the tight bound for the MCP client's request timeout is chunking + status, not this.
@@ -80,8 +82,10 @@ public static class ServerSettings
                 McpAddress = mcp.GetString();
             if (root.TryGetProperty("dev_tools", out var dt) && (dt.ValueKind == JsonValueKind.True || dt.ValueKind == JsonValueKind.False))
                 DevTools = dt.GetBoolean();
-            if (root.TryGetProperty("debug_artifacts", out var da) && (da.ValueKind == JsonValueKind.True || da.ValueKind == JsonValueKind.False))
-                DebugArtifacts = da.GetBoolean();
+            if (root.TryGetProperty("param_trace", out var pt) && (pt.ValueKind == JsonValueKind.True || pt.ValueKind == JsonValueKind.False))
+                ParamTrace = pt.GetBoolean();
+            else if (root.TryGetProperty("debug_artifacts", out _))
+                PluginLog.LogInfo("servers config: 'debug_artifacts' is obsolete and ignored; use 'param_trace'");
             if (root.TryGetProperty("dump_artifacts", out var dmp) && (dmp.ValueKind == JsonValueKind.True || dmp.ValueKind == JsonValueKind.False))
                 DumpArtifacts = dmp.GetBoolean();
             if (root.TryGetProperty("dialog_trace", out var dtr) && (dtr.ValueKind == JsonValueKind.True || dtr.ValueKind == JsonValueKind.False))
@@ -96,7 +100,7 @@ public static class ServerSettings
                 RenderScale = rsf;
             if (!TryParse(TcpAddress, out _, out _)) TcpAddress = DefaultTcp;
             if (!TryParse(McpAddress, out _, out _)) McpAddress = DefaultMcp;
-            PluginLog.LogInfo($"servers config: enabled={Enabled} tcp={TcpAddress} mcp={McpAddress} dev_tools={DevTools} debug_artifacts={DebugArtifacts} dump_artifacts={DumpArtifacts} dialog_trace={DialogTrace} max_batch_ops={MaxBatchOps} msaa={MsaaSamples} aniso={AnisoFiltering} render_scale={RenderScale}");
+            PluginLog.LogInfo($"servers config: enabled={Enabled} tcp={TcpAddress} mcp={McpAddress} dev_tools={DevTools} param_trace={ParamTrace} dump_artifacts={DumpArtifacts} dialog_trace={DialogTrace} max_batch_ops={MaxBatchOps} msaa={MsaaSamples} aniso={AnisoFiltering} render_scale={RenderScale}");
         }
         catch (Exception e) { PluginLog.LogError($"servers config load failed: {e.Message}"); }
     }
@@ -110,7 +114,7 @@ public static class ServerSettings
                        $"  \"tcp\": {JsonSerializer.Serialize(TcpAddress)},\n" +
                        $"  \"mcp\": {JsonSerializer.Serialize(McpAddress)},\n" +
                        $"  \"dev_tools\": {(DevTools ? "true" : "false")},\n" +
-                       $"  \"debug_artifacts\": {(DebugArtifacts ? "true" : "false")},\n" +
+                       $"  \"param_trace\": {(ParamTrace ? "true" : "false")},\n" +
                        $"  \"dump_artifacts\": {(DumpArtifacts ? "true" : "false")},\n" +
                        $"  \"dialog_trace\": {(DialogTrace ? "true" : "false")},\n" +
                        $"  \"max_batch_ops\": {MaxBatchOps},\n" +

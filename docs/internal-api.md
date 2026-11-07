@@ -242,9 +242,12 @@ commands on the Unity main thread.
 Exploration dump (only with `dump_artifacts: true`): `<app root>/catalog_<Full.Type.Name>.json`
 (categories, parameters, presets) and the combined `category_catalog.json`.
 
-`debug_artifacts` (off by default) only adds verbose runtime log lines (`PARAM[EDIT]`/`PARAM[REFRESH]`);
-`dump_artifacts` (off by default) is the one that writes the catalog/event files (`ui_events.jsonl`,
-`param_trace.log`, `catalog_*.json`, `category_catalog.json`, `catalog_params.json`) — those are only
+`param_trace` (off by default) enables the expensive per-setter instrumentation: it writes
+`<app root>/param_trace.log` (`EDIT`/`REFRESH` lines) and, when `Debug` is listed in the BepInEx
+`LogLevels`, logs the same lines at `Debug`. It reflects on every value setter, so keep it off unless
+diagnosing.
+`dump_artifacts` (off by default) writes the catalog/event files (`ui_events.jsonl`,
+`catalog_*.json`, `category_catalog.json`, `catalog_params.json`) — those are only
 needed when the editor build changes and the catalog has to be re-verified, not for normal work.
 `dialog_trace` (off by default) is the independent dialog-tracking devtool: it writes
 `dialog_trace.log` — every `DialogProviderViewModel` Show/ShowNotification/Dismiss, plus every
@@ -323,7 +326,7 @@ Screenshots are saved in variants: `screenshot.png` (canonical), `screenshot_raw
    - Conclusion: detect the fact of an edit on `Context.ExecuteSyncCommand` (the concrete command type) /
      `Context.SetBoneTransformParameter`; VM setters are suitable for single/color. The field
      `ui_events.jsonl.kind` (`edit`/`refresh`) distinguishes this; `param_trace.log` writes the stack
-     (both files — only with `dump_artifacts: true`).
+     (both files — `ui_events.jsonl` with `dump_artifacts`, `param_trace.log` with `param_trace`).
 5. **The Il2CppInterop proxy** returns the base/interface type in `GetType()`. The concrete type
    is obtained via the native class:
    `IL2CPP.il2cpp_object_get_class(ptr)` + `il2cpp_class_get_name/namespace` →

@@ -32,8 +32,9 @@ public class Plugin : BasePlugin
     {
         var loadSw = System.Diagnostics.Stopwatch.StartNew();
         PluginLog.Source = BepInEx.Logging.Logger.CreateLogSource("VroidStudioMcp");
+        PluginLog.DebugEnabled = (Logger.ListenedLogLevels & LogLevel.Debug) != 0;
         InteropLogFilter.Install();
-        // Loaded before patching: some patches are conditional on debug_artifacts.
+        // Settings are loaded before patching so the runtime flags are available to the patches.
         ServerSettings.Load();
         PresetLabels.Reload();
         PluginLog.LogInfo($"labels: {PresetLabels.Count} from {PresetLabels.Files.Count} file(s) in {PresetLabels.Dir}");

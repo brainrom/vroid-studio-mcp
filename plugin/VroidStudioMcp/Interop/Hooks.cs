@@ -310,9 +310,7 @@ public static class Hooks
     }
     public static void OnValuePre(object __instance, object[] __args, MethodBase __originalMethod)
     {
-        // Diagnostic-only (REFRESH/EDIT log + optional param_trace.log). It reflects on every value
-        // setter, so skip it entirely unless debug is on. The file trace is a dump artifact only.
-        if (!ServerSettings.DebugArtifacts) return;
+        if (!ServerSettings.ParamTrace && !PluginLog.DebugEnabled) return;
         try
         {
             var isRefresh = _refreshDepth > 0;
@@ -321,9 +319,9 @@ public static class Hooks
             var newv = SafeStr(First(__args));
             if (oldv == newv) return; // silent no-op (refresh or redundant edit)
             var shortType = (TypeName(__instance) ?? "?").Split('.').Last();
-            if (ServerSettings.DumpArtifacts)
+            var kind = isRefresh ? "REFRESH" : "EDIT";
+            if (ServerSettings.ParamTrace)
             {
-                var kind = isRefresh ? "REFRESH" : "EDIT";
                 try
                 {
                     lock (_fileLock)
@@ -331,10 +329,7 @@ public static class Hooks
                 }
                 catch { }
             }
-            if (isRefresh)
-                PluginLog.LogDebug($">>> PARAM[REFRESH] {shortType} [{label}] {oldv} -> {newv}");
-            else
-                PluginLog.LogWarning($">>> PARAM[EDIT] {shortType} [{label}] {oldv} -> {newv}");
+            PluginLog.LogDebug($">>> PARAM[{kind}] {shortType} [{label}] {oldv} -> {newv}");
         }
         catch { }
     }
