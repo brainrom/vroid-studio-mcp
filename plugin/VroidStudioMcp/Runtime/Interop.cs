@@ -112,6 +112,47 @@ public static class Interop
         }
         catch { return null; }
     }
+
+    // Test/diagnostic counters and seam for the two array strategies. Production code leaves
+    // ForceNativeArrayFallback false; the in-plugin tests flip it to prove both paths.
+    internal static int ManagedArrayHits;
+    internal static int NativeArrayFallbackHits;
+    internal static bool ForceNativeArrayFallback;
+
+    /// <summary>Last-resort read of a one-dimensional native reference array behind a proxy whose
+    /// array class Il2CppInterop could not cast (e.g. a property exposed as IReadOnlyCollection&lt;T&gt;
+    /// over a native T[]). The native element class must be assignable to <paramref name="elem"/>:
+    /// that keeps covariance working and refuses a mismatched FirstGenericArg guess.</summary>
+    private static List<object> TryReadNativeArray(Il2CppObjectBase o, Type elem, BindingFlags bf)
+    {
+        if (elem == null || !typeof(Il2CppObjectBase).IsAssignableFrom(elem)) return null;
+        try
+        {
+            var klass = IL2CPP.il2cpp_object_get_class(o.Pointer);
+            if (IL2CPP.il2cpp_class_get_rank(klass) != 1) return null;
+            var elementClass = IL2CPP.il2cpp_class_get_element_class(klass);
+            if (elementClass == IntPtr.Zero || IL2CPP.il2cpp_class_is_valuetype(elementClass)) return null;
+
+            var elemClass = Il2CppClassPointerStore.GetNativeClassPointer(elem);
+            if (elemClass == IntPtr.Zero
+                || !IL2CPP.il2cpp_class_is_assignable_from(elemClass, elementClass))
+            {
+                PluginLog.LogDebug($"EnumerateList: native array element is not {elem.FullName}; not wrapping");
+                return null;
+            }
+
+            var arrayType = typeof(Il2CppReferenceArray<>).MakeGenericType(elem);
+            var array = arrayType.GetConstructor(new[] { typeof(IntPtr) })
+                ?.Invoke(new object[] { o.Pointer });
+            return array == null ? null : IndexedRead(array, bf);
+        }
+        catch (Exception e)
+        {
+            PluginLog.LogDebug($"EnumerateList: native array read failed: {e.Message}");
+            return null;
+        }
+    }
+
     public static List<object> EnumerateList(object o)
     {
         var res = new List<object>();
@@ -142,6 +183,23 @@ public static class Interop
                     }
                 }
                 catch { }
+                // strategy 0b: the runtime object may be a T[] behind an IEnumerable<T>/IReadOnlyCollection<T>
+                // proxy (e.g. enum Items, property Groups). Rewrap to the array proxy and index it.
+                // Tests force the native fallback below to exercise that path separately.
+                if (!ForceNativeArrayFallback)
+                {
+                    try
+                    {
+                        var arrType = typeof(Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<>).MakeGenericType(elem);
+                        var castedArr = RewrapTo(o, arrType);
+                        if (castedArr != null && !ReferenceEquals(castedArr, o))
+                        {
+                            var sub = IndexedRead(castedArr, BF);
+                            if (sub != null) { ManagedArrayHits++; return sub; }
+                        }
+                    }
+                    catch { }
+                }
             }
         }
 
@@ -165,6 +223,17 @@ public static class Interop
             }
             catch { }
         }
+
+        // strategy 3: last resort. A native rank-1 reference array behind a generic proxy whose
+        // array class the managed rewrap could not resolve (e.g. the custom-item
+        // IReadOnlyCollection<T> proxy). Read it through Il2CppReferenceArray<T> after checking the
+        // native element type, so a wrong FirstGenericArg guess is refused instead of wrapped.
+        if (o is Il2CppObjectBase nativeArray)
+        {
+            var native = TryReadNativeArray(nativeArray, FirstGenericArg(o.GetType()), BF);
+            if (native != null) { NativeArrayFallbackHits++; return native; }
+        }
+
         return res;
     }
     public static bool Set(object o, string member, object value)
