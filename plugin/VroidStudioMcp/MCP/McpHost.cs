@@ -903,6 +903,17 @@ public static class McpHost
                     ["key"] = EnumSchema("Layer property.", "visibility", "opacity"),
                     ["value"] = P("string", "Boolean or finite opacity from 0 to 1, as a string.") }),
 
+            T("skin_texture",
+                "Inspect and edit native face or body skin raster layers. Prepare before imports. Omit layer to add; refresh inspect after each change. set_layer supports name, visibility and opacity. Preserves geometry. Preview requires screenshot and save/reopen.",
+                new[] { "target", "action", "layer", "path", "key", "value" }, new[] { "target", "action" },
+                new() {
+                    ["target"] = EnumSchema("Skin target.", "face", "body"),
+                    ["action"] = EnumSchema("Operation.", "inspect", "prepare", "import_texture", "export_texture", "set_layer"),
+                    ["layer"] = P("integer", "Layer index from fresh inspect; omit to add."),
+                    ["path"] = P("string", "Local PNG path."),
+                    ["key"] = EnumSchema("Layer property.", "name", "visibility", "opacity"),
+                    ["value"] = P("string", "Name, boolean or opacity 0 to 1.") }),
+
             T("iris_texture",
                 "Inspect and edit the current model's native iris raster texture without changing face geometry, brows or lashes. Start with inspect; prepare explicitly makes the iris texture editable. import_texture replaces the indexed raster layer, or adds a layer when omitted. export_texture writes one layer PNG to a new file. set_layer supports visibility and opacity. Layer indices are session-local: refresh inspect after edits. Native history commands wait for completed model readiness; inspect state before retrying a timeout. Use screenshots and save/reopen to assess appearance. The PNG contains both eyes; this does not select a face preset or import a whole model.",
                 new[] { "action", "layer", "path", "key", "value" }, new[] { "action" },

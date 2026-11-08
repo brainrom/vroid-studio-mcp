@@ -63,6 +63,7 @@ public static class CommandDispatcher
         "hair_geometry",
         "hair_material_source",
         "iris_texture",
+        "skin_texture",
         "eyelid_texture",
     };
 
@@ -117,6 +118,7 @@ public static class CommandDispatcher
         ["hair_geometry"] = HairGeometryHandlers.Run,
         ["hair_material_source"] = HairMaterialSourceHandlers.Run,
         ["iris_texture"] = IrisTextureHandlers.Run,
+        ["skin_texture"] = SkinTextureHandlers.Run,
         ["eyelid_texture"] = EyelidTextureHandlers.Run,
         ["sections"] = ctx => { ctx.Result = Sections.SectionList(); return CommandUtil.Done(); },
         ["open"] = SessionHandlers.Open,
