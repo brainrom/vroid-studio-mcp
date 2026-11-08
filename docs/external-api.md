@@ -194,7 +194,7 @@ model.
   empty template (no strand geometry) until it is sculpted in the design editor. Creating does not
   apply the preset; use `select_preset` for that. Blocking.
 - `import_custom_preset(section, category, path, name?, wear?)` — import a reusable custom item
-  (`*.vroidcustomitem`) from a host path into the Custom tab of the matching Hairstyle or Outfit
+  (`*.vroidcustomitem`) from a host path into the Custom tab of the matching Hairstyle, Outfit or Face/Eyelids
   category. The target category comes from the file, so a file imported from another tab in the same
   section lands in its own category (`category` in the result, plus `requested_category` when they
   differ). `name` optionally renames the new item. `wear` chooses whether the imported item is applied
@@ -202,7 +202,7 @@ model.
   section, category, id, name, file, applied, wear_requested, type, count, renamed}`. Blocking.
 - `export_custom_preset(section, category, index, path, save?, overwrite?)` — export the Custom-tab
   item with the `id` from `presets` to a `*.vroidcustomitem` file (the extension is appended when the
-  path has none). Hairstyle and Outfit only, and the item may be worn or not. `save=true` (default)
+  path has none). Hairstyle, Outfit and Face/Eyelids are supported; the item may be worn or not. `save=true` (default)
   includes the worn item's current design in the exported file; for an unworn item that step is
   skipped (`saved:false`) and the stored file is exported as-is. `save=false` exports the stored file
   without touching the model. `overwrite=false` refuses to replace an existing file. Returns
@@ -400,6 +400,40 @@ persistence. Unsupported or ambiguous native iris layouts are rejected instead o
 internal image IDs. The tool never rewrites a `.vroid` archive.
 
 See [iris texture validation](iris-texture-validation.md) for tested and unverified paths.
+
+## Eyelid texture layers
+
+`eyelid_texture` supports `inspect`, `export_texture` (`layer`, `path`) and
+`set_layer` (`layer`, `key`, `value`). Layer keys are `visibility` and `opacity`
+(finite `0`..`1`); exports require a new PNG path. Inspect returns the exact native
+eyelid group/image, editable state and raster layer names, visibility, opacity and
+blend mode. Other face channels and geometry are outside this tool.
+
+Use `import_custom_preset` with `section:"Face"`, `category:"Eyelids"` to import an
+eyelid custom item through VRoid's native registry. Face imports must have the exact
+native `Level2.Eyelid` root type; other Face categories and item types are rejected.
+`wear:"later"` only adds the library item. `wear:"now"` applies its eyelid group;
+inspect the item and back up the model before replacing an existing group.
+This does not import a complete face, sample model, iris or clothing set.
+
+```json
+{"name":"import_custom_preset","arguments":{"section":"Face","category":"Eyelids","path":"C:/art/eyelids.vroidcustomitem","wear":"now"}}
+{"name":"eyelid_texture","arguments":{"action":"inspect"}}
+{"name":"eyelid_texture","arguments":{"action":"set_layer","layer":0,"key":"visibility","value":"true"}}
+{"name":"eyelid_texture","arguments":{"action":"set_layer","layer":0,"key":"opacity","value":"0.7"}}
+{"name":"eyelid_texture","arguments":{"action":"export_texture","layer":0,"path":"C:/art/eyelid-layer.png"}}
+```
+
+Layer editing requires an already editable native image, such as a layered custom
+item. PNG import, asset-backed preparation, blending changes and layer restructuring
+are not exposed here. Refresh indices after item changes. Mutations wait for a
+completed native rebuild for up to 12 seconds; a timeout can follow an applied edit,
+so inspect before retrying. `preview_verified:false` is not visual acceptance.
+Save/reopen and inspect actual renders separately. Shared skin colours are not
+changed automatically.
+
+See [eyelid layer validation](eyelid-texture-validation.md) for tested and
+unverified paths, including the untested Face/Eyelids custom-item export route.
 
 ## Session identity and history
 

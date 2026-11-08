@@ -112,7 +112,7 @@ public static class McpHost
                 "global (saved on disk) and show up in every model. Create one, named, with " +
                 "create_custom_preset(section, category, name) -> {id,name}; it is an empty template until it is\n" +
                 "designed in the hair design editor.\n" +
-                "- Custom-item files (*.vroidcustomitem; Hairstyle and Outfit only): " +
+                "- Custom-item files (*.vroidcustomitem; Hairstyle, Outfit and Face/Eyelids): " +
                 "import_custom_preset(section, category, path, name?, wear?) imports a file into the Custom tab " +
                 "(the category comes from the file; wear='now' applies it, 'later' (default) only adds it) and " +
                 "returns the new item; export_custom_preset(section, category, id, path, save?, overwrite?) " +
@@ -877,6 +877,16 @@ public static class McpHost
                   ["key"] = P("string", "Exact native property key from inspect, or visibility/opacity/blend for set_layer."),
                   ["value"] = P("string", "Color, finite numeric value, boolean or supported blend name as a string.") }),
 
+            T("eyelid_texture",
+                "Inspect the current model's native eyelid raster layers, export one layer to a new PNG, or change visibility/opacity. Requires an applied editable eyelid item, for example imported through Face/Eyelids. Does not edit iris textures, face geometry, eyebrows or other face channels. Refresh layer indices after changing items. Mutations await native rebuild completion; preview_verified=false requires visual inspection.",
+                new[] { "action", "layer", "path", "key", "value" }, new[] { "action" },
+                new() {
+                    ["action"] = EnumSchema("Operation.", "inspect", "export_texture", "set_layer"),
+                    ["layer"] = P("integer", "Existing raster layer index from inspect."),
+                    ["path"] = P("string", "New local PNG destination for export_texture."),
+                    ["key"] = EnumSchema("Layer property.", "visibility", "opacity"),
+                    ["value"] = P("string", "Boolean or finite opacity from 0 to 1, as a string.") }),
+
             T("iris_texture",
                 "Inspect and edit the current model's native iris raster texture without changing face geometry, brows or lashes. Start with inspect; prepare explicitly makes the iris texture editable. import_texture replaces the indexed raster layer, or adds a layer when omitted. export_texture writes one layer PNG to a new file. set_layer supports visibility and opacity. Layer indices are session-local: refresh inspect after edits. Native history commands wait for completed model readiness; inspect state before retrying a timeout. Use screenshots and save/reopen to assess appearance. The PNG contains both eyes; this does not select a face preset or import a whole model.",
                 new[] { "action", "layer", "path", "key", "value" }, new[] { "action" },
@@ -1070,7 +1080,7 @@ public static class McpHost
 
             T("import_custom_preset",
               "Import a reusable custom item (*.vroidcustomitem) from a host path into the Custom tab of the " +
-              "matching Hairstyle or Outfit category. The target category is taken from the file, so a file " +
+              "matching Hairstyle, Outfit or Face/Eyelids category. Other Face categories are rejected. The target category is taken from the file, so a file " +
               "imported from another tab in the same section lands in its own category (the result carries the " +
               "actual category, plus requested_category when it differs). wear='now' applies the imported item " +
               "to the model; wear='later' (default) only adds it to the library. name optionally renames the new " +
@@ -1079,7 +1089,7 @@ public static class McpHost
               new[] { "section", "category", "path", "name", "wear" }, new[] { "section", "category", "path" },
               new()
               {
-                  ["section"] = EnumSchema("Section label (Hairstyle or Outfit).", sections),
+                  ["section"] = EnumSchema("Section label (Hairstyle, Outfit, or Face for Eyelids only).", sections),
                   ["category"] = P("string", "Category/tab name from categories()."),
                   ["path"] = P("string", "Host path to a *.vroidcustomitem file (e.g. " + HostPathExample + ")."),
                   ["name"] = P("string", "Optional name for the imported item."),
@@ -1087,7 +1097,7 @@ public static class McpHost
               }),
 
             T("export_custom_preset",
-              "Export a custom preset (a Custom-tab item, *.vroidcustomitem) from a Hairstyle or Outfit category " +
+              "Export a custom preset (a Custom-tab item, *.vroidcustomitem) from Hairstyle, Outfit or Face/Eyelids " +
               "to a host path. `id` is the preset id from presets(); the item may be worn or not. save=true " +
               "(default) first saves the worn item's current design into its reusable file, so unsaved edits are " +
               "included; for an unworn item that step is skipped (saved=false) and the stored file is exported " +
@@ -1099,7 +1109,7 @@ public static class McpHost
               new[] { "section", "category", "index", "path" },
               new()
               {
-                  ["section"] = EnumSchema("Section label (Hairstyle or Outfit).", sections),
+                  ["section"] = EnumSchema("Section label (Hairstyle, Outfit, or Face for Eyelids only).", sections),
                   ["category"] = P("string", "Category/tab name from categories()."),
                   ["index"] = P("integer", "Preset id from presets() (kind 'custom')."),
                   ["path"] = P("string", "Host path for the exported file ('.vroidcustomitem' is appended when the path has no extension)."),

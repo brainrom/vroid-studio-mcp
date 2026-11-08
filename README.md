@@ -20,6 +20,8 @@ control, while you keep working in VRoid Studio as usual.
   [tool contract and limitations](docs/external-api.md#hair-material-editing).
 - **Iris textures** — import/export native iris PNG layers and control their visibility/opacity
   without replacing the face. See [iris texture editing](docs/external-api.md#iris-texture-editing).
+- **Eyelid layers** — import native eyelid custom items and select their visible raster layers.
+  See [eyelid texture layers](docs/external-api.md#eyelid-texture-layers).
 - **Session diagnostics** — identify the loaded process/build, model path and unsaved state before
   working with multiple editor instances; clean exact recent-history entries without deleting models.
 - **Live visual feedback** — the agent receives rendered previews of the model and preset

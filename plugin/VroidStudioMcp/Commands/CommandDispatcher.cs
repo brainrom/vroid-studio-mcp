@@ -62,6 +62,7 @@ public static class CommandDispatcher
         "hair_material",
         "hair_material_source",
         "iris_texture",
+        "eyelid_texture",
     };
 
     public static Task<CommandResult> Submit(string method, string[] args)
@@ -114,6 +115,7 @@ public static class CommandDispatcher
         ["hair_material"] = HairMaterialHandlers.Run,
         ["hair_material_source"] = HairMaterialSourceHandlers.Run,
         ["iris_texture"] = IrisTextureHandlers.Run,
+        ["eyelid_texture"] = EyelidTextureHandlers.Run,
         ["sections"] = ctx => { ctx.Result = Sections.SectionList(); return CommandUtil.Done(); },
         ["open"] = SessionHandlers.Open,
         ["create"] = SessionHandlers.Create,
