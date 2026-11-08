@@ -64,7 +64,7 @@ also uses guide and strand control points. These describe authoring workflows,
 not proof of 2.16.0 history-command wiring. The older manual referenced in
 `quirks.md` is absent from this checkout.
 
-## Validation and remaining work
+## Initial source/build validation (before the authorized retry)
 
 Retained local evidence: `delivery-report.md`, `geometry-preservation.json`,
 `Idol-geometry-candidate1/2/3.json`, `Idol-hairline-attempt1/2/3.png`,
@@ -101,3 +101,55 @@ Retained logs contain save watchdog messages at 15/20 seconds followed by a
 successful 21.62-second save. Analytics/network and binding warnings are separate;
 native BuildModifier disposal warnings remain unexplained. Logs are not claimed
 clean, and none of these messages establishes the geometric cause.
+
+## Authorized PR #6 runtime retry (2026-11-08)
+
+The owner subsequently authorized another visual fitting round using PR #6. The
+existing behavior allowance continued; it was not reset. This section supersedes
+the initial runtime-unverified and fitting-skipped statuses above for the checks
+explicitly listed here. The tested code is `7dc218b7e0c3a041c034cc21f41954d12111117b`.
+
+The installed Release DLL was loaded in an agent-owned 2.16.0 instance and its
+module identity confirmed. All edits used separate disposable copies. The owner's
+running 2.10 editor was preserved; the task instance was closed after cleanup.
+
+| Check | Result and boundary |
+| --- | --- |
+| Invalid origin inputs | **VERIFIED:** NaN and a 0.03 axis displacement were rejected, with origin readback unchanged. This is not an exhaustive invalid-input matrix. |
+| Position axes and readiness | **VERIFIED:** X, Y and Z writes returned the requested stored coordinates and ready completion in the exercised workflows. Rotation and scale were preserved. Delayed/timeout cases remain unverified. |
+| Group/material isolation | **VERIFIED:** all existing group inspection records matched after reopening, except their list indices; group/strand counts and material inventories were preserved. Each candidate added one group with two strands using an existing material. This is not a raw mesh/vertex audit. |
+| Save/reopen | **VERIFIED:** both candidates' inspected group state, including translated origins, persisted through native save/reopen. |
+| Gothic visual fitting | **VERIFIED in captured views:** candidate 2 covered the exposed scalp edge in matched front and both three-quarter views. Full-body comparisons retained the outfit and hairstyle silhouette. A separate editable trial was retained; owner selection is pending. |
+| Idol visual fitting | **FAILED:** the initial attempt and two corrective retries retained unsuitable stiff tips/crown transitions. The candidate was rejected and its disposable file removed. The original model was unchanged. |
+| Eye preservation | **VERIFIED for Gothic:** iris RGBA pixels and the inspected eyelid state were unchanged after reopening. Face-parameter equality was not re-read in this pass. |
+
+The Gothic trial retains 8 original groups/52 strands and adds one group/two
+strands (9/54 total). The rejected Idol trial retained 12 original groups/56 strands
+and added one group/two strands (13/58 total). Source models, approved hairstyles,
+original models and purchased-library inventory were preserved. All 20 pre-existing
+recent-list members were restored; the separate new trial was not registered in
+that capacity-limited list. Private assets, models and screenshots are not published.
+
+Shared behavior verification used **173.96118/180 seconds**, leaving **6.03882
+seconds**. The retry used 63.94070 seconds of runtime checks and 0.81437 seconds of
+offline receipt checks, in addition to the prior 109.20611 seconds. Production
+fitting and screenshot work are separate. No new test framework was added.
+Local receipts include `preservation.json`, `verification-budget.json`,
+`installation-final.json`, `operations.jsonl`, the three-angle Before/After renders,
+and rejected-attempt renders under the private PR6-Hairline-20261108 evidence folder.
+
+The plugin log contains open/save watchdog messages at 16/19 seconds; those
+operations completed in 16.846/21.397 seconds. Analytics DNS failures are separate
+from model commands. The app also logged a missing legacy BetaDocuments preference
+file and explicitly fell back to defaults. Binding warnings and native
+BuildModifier disposal warnings remain; the latter's cause is **UNVERIFIED**.
+ErrorLog contains only a UTF-8 marker. Logs are not claimed clean.
+
+**Still unsupported or deferred:** guide/strand control-point sculpting, root
+placement mapping, physical/world-axis calibration, rotation/scale writes, undo/redo
+replay, forced partial-application/timeouts, other platforms and Unreal appearance.
+PR #6 provides useful translation, demonstrated on Gothic; it is insufficient to
+claim general hairline fitting. For Idol, the next proposed investigation is the
+native freehand/strand control-point command path, followed by a separately
+authorized fitting round on a disposable copy. Translation alone cannot change
+the shape of individual roots or tips.
