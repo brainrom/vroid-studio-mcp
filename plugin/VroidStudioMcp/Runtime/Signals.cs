@@ -20,6 +20,7 @@ public static class Signals
     private static int _baseline;
 
     public static int Version => _presetsUpdated + _modelRebuilt;
+    public static int RebuildVersion => _modelRebuilt;
 
     public static void PresetsUpdated() => _presetsUpdated++;
     public static void ModelRebuilt() => _modelRebuilt++;

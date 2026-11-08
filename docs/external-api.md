@@ -318,3 +318,44 @@ stay on the developer surface (identifier parsing — `internal-api.md` §5).
 - **Undo/redo** exists in the engine history (`Context`) but is not exposed yet.
 - `IsChecked` (`ColorViewModelBase`) toggles an overlay (`*_OverlayColorDisableFlag`); the UI has
   almost no explicit checkboxes, and it is not needed for the current surface.
+
+
+## Native height and grouped parameter updates
+
+`body_height()` reads the body editor's native `BodyHeightValue`, `BodyHeightLabel`,
+`UnitLabel` and property label. It requires a ready model and refuses a read during an
+update. `value` retains the native unit; consult `unit_label` rather than assuming units.
+Windows 2.16.0 runtime returned value `159.7701416015625`, label `159.8cm`, unit `cm`
+for a disposable stock female model. This is not a camera/mesh-bounds estimate.
+
+`set_params(section, category, changes_json)` applies 1–64 changes in one category.
+For example, `changes_json` can contain:
+
+```json
+[{"parameter":"Face/Irises/Iris Size (X)","value":0.2},
+ {"parameter":"Face/Irises/Iris Size (Y)","value":0.3}]
+```
+
+All entries, duplicate targets, finite values and available setters are checked before
+parameter setters run. Navigation to the specified category may still occur on rejected
+input. The tool uses ordinary native setters in sequence and one final readiness wait;
+it does **not** suppress native rebuilds, provide an atomic transaction or promise a speedup.
+Results report returned setter calls, `native_rebuilds_suppressed:false`, observed rebuild
+and updating state. An observed rebuild/idle state is not a per-setter completion token.
+A deadline without observed rebuild/idle state returns an error with the applied prefix;
+do not blindly replay after partial failure. A failed setter itself may already have applied.
+No-op inputs may produce no rebuild and therefore an incomplete-readiness error.
+
+Global hair Main/Emission entries include a warning during discovery and setter responses:
+these operations can overwrite distinct custom hair material colours. This preserves the
+native global-colour semantics. Use individual-material tools when installed (separate PR #5)
+to preserve distinct colours. It does not claim to detect all material configurations.
+
+### Remaining issue #1 boundaries
+
+Inner Top/Bottom removal is not added. The inspected native texture editor exposes layer
+visibility toggling, but reliable category-to-layer ownership was not established and entry
+can trigger colour-baking/save prompts. Arbitrarily toggling layers would risk unrelated
+textures. A future implementation needs exact clothing ownership and reversible layer-state
+capture before it can safely expose this operation. True native rebuild suspension remains
+unimplemented; the grouped setter is only an intermediate improvement.

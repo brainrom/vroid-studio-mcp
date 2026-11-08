@@ -332,6 +332,8 @@ public static class Parameters
                 ["max"] = p.Max,
             };
             if (p.Kind == "color") { d["name"] = p.Name; d["group"] = p.Group; d["id"] = p.Id; }
+            if (p.ColorId == "Hair|Main" || p.ColorId == "Hair|Emission")
+                d["warning"] = ParamHandlers.HairGlobalWarning;
             if (!string.IsNullOrEmpty(p.Key)) d["key"] = p.Key;
             // Global colours (hair Main/Emission, the shared skin base) use a section-less path that
             // any relevant tab can address; flag it so a client knows the path is portable.
