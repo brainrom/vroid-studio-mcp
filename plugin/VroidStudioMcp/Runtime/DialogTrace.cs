@@ -37,7 +37,7 @@ public static class DialogTrace
                 $"title='{title}'\tinfo='{info}'\tin_flight='{cmd}'({secs:F1}s)\t" +
                 $"awaitingLoad={_awaitingLoadError} inEdit={_inEdit}]{extra}";
             lock (_lock) File.AppendAllText(_path, line + "\n");
-            PluginLog.LogWarning(">>> DIALOG " + line);
+            PluginLog.LogDebug(">>> DIALOG " + line);
         }
         catch { }
     }

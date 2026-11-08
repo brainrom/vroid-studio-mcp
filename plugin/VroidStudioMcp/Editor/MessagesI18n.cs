@@ -75,7 +75,7 @@ public static class MessagesI18n
     {
         var m = t != null ? AccessTools.Method(t, method) : null;
         if (m == null) { PluginLog.LogWarning($"i18n: funnel not found: {t?.FullName ?? "?"}.{method}"); return; }
-        try { Plugin.Harmony.Patch(m, postfix: post); PluginLog.LogWarning($"i18n: patched {t.FullName}.{method}"); }
+        try { Plugin.Harmony.Patch(m, postfix: post); PluginLog.LogDebug($"i18n: patched {t.FullName}.{method}"); }
         catch (Exception e) { PluginLog.LogError($"i18n: patch {t.FullName}.{method}: {e.Message}"); }
     }
 

@@ -148,7 +148,7 @@ public static class CameraApi
             var center3 = new UnityEngine.Vector3(c0.x, bottom + center * h, c0.z);
             var pos = center3 + dir * (dist0 * view);
             Invoke(_cameraPosition, "SetCustomView", pos, center3);
-            PluginLog.LogWarning($"camera frame c={center:0.00} v={view:0.00} yaw={yawRelativeDeg:0} h={h:0.000} dist0={dist0:0.000} center3={center3}");
+            PluginLog.LogDebug($"camera frame c={center:0.00} v={view:0.00} yaw={yawRelativeDeg:0} h={h:0.000} dist0={dist0:0.000} center3={center3}");
         }
         catch (Exception e) { PluginLog.LogError($"camera frame failed: {e.Message}"); }
     }
@@ -267,7 +267,7 @@ public static class CameraApi
             var cam = AvatarCamera();
             var cp = cam != null ? cam.transform.position : default(UnityEngine.Vector3);
             bool hasB = TryGetAvatarBounds(out var b);
-            PluginLog.LogWarning($"camera probe: initPos={p0} initCenter={c0} rotCenter={rc} camPos={cp} bounds={(hasB ? b.ToString() : "none")} fov={(cam != null ? cam.fieldOfView : 0f)}");
+            PluginLog.LogDebug($"camera probe: initPos={p0} initCenter={c0} rotCenter={rc} camPos={cp} bounds={(hasB ? b.ToString() : "none")} fov={(cam != null ? cam.fieldOfView : 0f)}");
         }
         catch (Exception e) { PluginLog.LogError($"camera probe failed: {e.Message}"); }
     }
@@ -343,7 +343,7 @@ public static class CameraApi
                         Get(_cameraPosition, "_initialRotationCenter") is UnityEngine.Vector3 ic)
                         Invoke(_cameraPosition, "SetCustomView", ip, ic);
                     RestoreInitialProjection();
-                    PluginLog.LogWarning("camera reset");
+                    PluginLog.LogDebug("camera reset");
                     break;
                 case "angles":
                     if (parts.Length >= 3)
@@ -351,7 +351,7 @@ public static class CameraApi
                         var v = new UnityEngine.Vector2(float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture),
                                                         float.Parse(parts[2], System.Globalization.CultureInfo.InvariantCulture));
                         Invoke(_cameraPosition, "ChangeAngles", v);
-                        PluginLog.LogWarning($"camera angles {parts[1]},{parts[2]}");
+                        PluginLog.LogDebug($"camera angles {parts[1]},{parts[2]}");
                     }
                     break;
                 case "rotate":
@@ -366,14 +366,14 @@ public static class CameraApi
                         { LastError = $"camera rotate: invalid mode '{parts[1]}' (valid: {RotationModesText() ?? "?"})"; PluginLog.LogError(LastError); return false; }
                         var mode = Enum.ToObject(modeType, modeIdx);
                         Invoke(_cameraPosition, "RotateAxis", mode);
-                        PluginLog.LogWarning($"camera rotate {parts[1]}");
+                        PluginLog.LogDebug($"camera rotate {parts[1]}");
                     }
                     break;
                 case "zoom":
                     if (parts.Length >= 2)
                     {
                         Invoke(_cameraPosition, "Zoom", float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture));
-                        PluginLog.LogWarning($"camera zoom {parts[1]}");
+                        PluginLog.LogDebug($"camera zoom {parts[1]}");
                     }
                     break;
                 case "ortho":
@@ -386,7 +386,7 @@ public static class CameraApi
                         if (cam == null) { LastError = "camera ortho: no camera"; PluginLog.LogError(LastError); return false; }
                         cam.orthographic = true;
                         cam.orthographicSize = float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
-                        PluginLog.LogWarning($"camera ortho {parts[1]}");
+                        PluginLog.LogDebug($"camera ortho {parts[1]}");
                     }
                     break;
                 case "fov":
@@ -395,7 +395,7 @@ public static class CameraApi
                         var cam = AvatarCamera();
                         if (cam == null) { LastError = "camera fov: no camera"; PluginLog.LogError(LastError); return false; }
                         cam.fieldOfView = float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
-                        PluginLog.LogWarning($"camera fov {parts[1]}");
+                        PluginLog.LogDebug($"camera fov {parts[1]}");
                     }
                     break;
                 case "pan":
@@ -404,12 +404,12 @@ public static class CameraApi
                         var v = new UnityEngine.Vector2(float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture),
                                                         float.Parse(parts[2], System.Globalization.CultureInfo.InvariantCulture));
                         Invoke(_cameraPosition, "Pan", v);
-                        PluginLog.LogWarning($"camera pan {parts[1]},{parts[2]}");
+                        PluginLog.LogDebug($"camera pan {parts[1]},{parts[2]}");
                     }
                     break;
                 case "projection":
                     Invoke(_cameraPosition, "SwitchCameraProjection");
-                    PluginLog.LogWarning("camera projection toggled");
+                    PluginLog.LogDebug("camera projection toggled");
                     break;
                 case "frame":
                     {
@@ -420,7 +420,7 @@ public static class CameraApi
                         if (parts.Length >= 3 && !TryAngle(parts[2], out yawRel))
                         { LastError = $"camera frame: unknown angle '{parts[2]}' (front|back|left|right|threequarter_left|threequarter_right)"; PluginLog.LogError(LastError); return false; }
                         ApplyCameraPreset(region, yawRel);
-                        PluginLog.LogWarning($"camera frame {region} yaw={yawRel:0}");
+                        PluginLog.LogDebug($"camera frame {region} yaw={yawRel:0}");
                     }
                     break;
                 case "view":

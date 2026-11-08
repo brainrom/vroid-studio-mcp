@@ -3,6 +3,22 @@
 This document lists engine behaviours that are **not** obvious from the `Editor/` code. For how to
 call the API, see `plugin/VroidStudioMcp/Editor/` and `docs/architecture.md`.
 
+## Runtime diagnostics
+
+Routine hook, category, command, color-selection, camera, file, preview-RT and screenshot
+traces use Debug. Enable `Debug` in `[Logging.Console]` and/or `[Logging.Disk]` `LogLevels`
+in `BepInEx.cfg` (and enable the corresponding listener) to collect them. Listener startup
+messages use Info; actual warnings and errors retain their levels.
+
+`param_trace` enables the expensive per-setter trace and writes `param_trace.log`.
+Per-setter diagnostics also run when a BepInEx listener accepts Debug; both `PARAM[EDIT]`
+and `PARAM[REFRESH]` use Debug. `dump_artifacts` writes catalogs and `ui_events.jsonl`,
+not the parameter trace. The removed `debug_artifacts` key is ignored.
+
+The external render suite deliberately opens a malformed model and attempts an invalid save.
+Those negative tests can produce Unity exceptions even when the suite passes; distinguish
+those expected exceptions from failures during normal editing.
+
 ## Readiness and synchronization
 
 - **"Model loaded"** = `VRoidCoreModelUpdater.set_IsUpdatingModel` true→false.
@@ -22,6 +38,11 @@ call the API, see `plugin/VroidStudioMcp/Editor/` and `docs/architecture.md`.
   `timescalefuzz` (does not require a model): it manually drives waits under `timeScale=0` with a watchdog.
 
 ## Background/minimized window
+
+- **Windows console selection can pause the app.** If the BepInEx console title starts with
+  `Select`, press Escape in that console to leave text selection before diagnosing a stalled
+  command. Keep disk logging enabled when collecting evidence; the optional production config
+  disables the console.
 
 - **The plugin forcibly keeps `Application.runInBackground = true`** (the app itself turns it off via
   `RunInBackgroundUtil`), so the main-thread command queue does not stall when the window is out of focus or
@@ -479,16 +500,21 @@ call the API, see `plugin/VroidStudioMcp/Editor/` and `docs/architecture.md`.
   `PositionOffsetX/Y`; the writer treats `null` as inherit, and the round-trip comparator treats the two
   as the same state for this field only.
 - Iterate collections via `Count`/`Item`/`ToArray` (not `IEnumerator.Current` → AV).
-- **A native array can arrive as `IReadOnlyCollection<T>`.** On VRoid Studio 2.16.0,
-  `PresetCategoryViewModel._customItems` is exposed through that interface while its native type
-  is `IOptionViewModel[]`. The interface proxy has `Count` but no indexer, and the native array
-  name has no generated proxy for `RealObj` to resolve. List-only enumeration silently returns
-  zero entries, hiding saved custom items and the Add/Import tiles. `EnumerateList` checks the
-  native rank and element type, then reads one-dimensional reference arrays through
-  `Il2CppReferenceArray<T>`. It never wraps a value-type or multidimensional array this way.
-  `enumerationtest` covers array-backed and list-backed interfaces, order/null preservation,
-  direct and empty arrays; `customcollectiontest` checks the real Outfit/Dresses and
-  Hairstyle/Back Add/Import tiles. The latter needs a model and does not change the library.
+- **A native array can arrive as `IReadOnlyCollection<T>`.** The interface proxy exposes `Count`
+  but no indexer, and the native array class name has no generated proxy for `RealObj` to
+  resolve; list/indexer/ToArray enumeration alone therefore returns zero entries. This hides
+  saved custom items and the Add/Import tiles on 2.14 and 2.16
+  (`PresetCategoryViewModel._customItems` is a native `IOptionViewModel[]`). `EnumerateList`
+  therefore tries the managed `List<T>` and `Il2CppReferenceArray<T>` rewraps, the proxy indexer
+  and `ToArray()`, and only then reads a one-dimensional reference array through
+  `Il2CppReferenceArray<T>` as a last resort. The fallback checks the native rank, rejects
+  value-type/multidimensional arrays and requires the native element class to be assignable to
+  the proxy's generic argument, so covariance works but a wrong `FirstGenericArg` guess is
+  refused. `enumerationtest` covers array/list-backed interfaces, order/null preservation,
+  direct/empty arrays, covariance and a deliberately mismatched interface, once through the
+  managed rewrap and once with the native fallback forced; `customcollectiontest` checks the real
+  Outfit/Dresses and Hairstyle/Back Add/Import tiles and repeats the discovery with the native
+  fallback forced. The latter needs a model and does not change the library.
 - **The `.ctor` of proxies/base classes is not patched** ("Derived classes must provide an
   implementation"); patch the own ctors of concrete types or methods. The expected Il2CppInterop warning
   (`Failed to init IL2CPP patch backend … using normal patch handlers`) is selectively

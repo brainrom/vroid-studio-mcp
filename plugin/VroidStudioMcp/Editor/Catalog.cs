@@ -199,7 +199,7 @@ public static class Catalog
             var json = MiniJson.Serialize(root, true);
             var path = Path.Combine(BepInEx.Paths.GameRootPath, "category_catalog.json");
             File.WriteAllText(path, json, Utf8);
-            PluginLog.LogWarning($"catalog written: {path} ({Selectors.Count} selectors)");
+            PluginLog.LogDebug($"catalog written: {path} ({Selectors.Count} selectors)");
         }
         catch (Exception e) { PluginLog.LogError($"catalog dump failed: {e}"); }
     }
@@ -211,7 +211,7 @@ public static class Catalog
             var safe = (typeName ?? "selector").Replace("`", "").Replace('.', '_');
             var path = Path.Combine(BepInEx.Paths.GameRootPath, $"catalog_{safe}.json");
             File.WriteAllText(path, MiniJson.Serialize(d, true), Utf8);
-            PluginLog.LogWarning($"catalog written: {path}");
+            PluginLog.LogDebug($"catalog written: {path}");
         }
         catch (Exception e) { PluginLog.LogError($"selector dump failed {typeName}: {e.Message}"); }
     }
@@ -246,7 +246,7 @@ public static class Catalog
             }
             var path = Path.Combine(BepInEx.Paths.GameRootPath, "catalog_params.json");
             File.WriteAllText(path, MiniJson.Serialize(new Dictionary<string, object> { ["params"] = list }, true), Utf8);
-            PluginLog.LogWarning($"catalog_params written: {list.Count} params");
+            PluginLog.LogDebug($"catalog_params written: {list.Count} params");
         }
         catch (Exception e) { PluginLog.LogError($"params dump failed: {e.Message}"); }
     }
