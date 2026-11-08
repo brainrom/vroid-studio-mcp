@@ -1057,12 +1057,31 @@ public static class McpHost
               }),
 
 
+            T("body_height",
+              "Read the native body-height value, label and unit used by the app body editor. " +
+              "Requires a loaded, ready model; does not estimate from camera or renderer bounds and does not edit the model.",
+              Array.Empty<string>(), Array.Empty<string>(), new()),
+
+            T("set_params",
+              "EXPERIMENTAL: apply up to 64 parameter edits within one category, with one final readiness wait. " +
+              "Validates all entries before parameter mutation. Uses ordinary native setters; does not suppress native " +
+              "rebuilds or promise one rebuild, atomicity, rollback, or a speedup. Native failures may partially apply. " +
+              "Use stable paths; refresh enter() after changes. Global hair colours can replace custom material colours.",
+              new[] { "section", "category", "changes_json" }, new[] { "section", "category", "changes_json" },
+              new()
+              {
+                  ["section"] = EnumSchema("Section label.", sections),
+                  ["category"] = P("string", "Category/tab name from categories()."),
+                  ["changes_json"] = P("string", "JSON array of {parameter,value}; parameter is a stable path/name/index string, value is a number or colour string. Maximum 64 entries."),
+              }),
+
             T("set_param",
               "Set one parameter of a category. Address it by its stable global 'path' from enter() " +
               "(e.g. 'Face/Irises/L Eye'), or by its short name/label (numeric: 'Iris Size (X)'; colors: 'L Eye', 'Main Color'), " +
               "or by its numeric 'index' (valid only for the category you just entered). " +
               "value: a float as a string for 'float'/'combined', or a color as '#RRGGBB' (or 'r,g,b' in 0..1) for 'color'. " +
-              "Blocks until applied. Returns {index,label,value}.",
+              "Blocks until applied. Returns {index,label,value}. Global Hairstyle/Main or Hairstyle/Emission edits can " +
+              "overwrite custom hair material colours; use individual material editing when available to preserve them.",
               new[] { "section", "category", "index", "value" }, new[] { "section", "category", "index", "value" },
               new()
               {

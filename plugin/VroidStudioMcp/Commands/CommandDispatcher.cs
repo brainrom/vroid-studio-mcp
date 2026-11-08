@@ -55,7 +55,7 @@ public static class CommandDispatcher
     private static readonly HashSet<string> EditRequired = new()
     {
         "save", "categories", "enter", "presets", "presets_full", "select_preset",
-        "set_param", "label_set", "preset_preview_list", "preset_preview_range",
+        "body_height", "set_param", "set_params", "label_set", "preset_preview_list", "preset_preview_range",
         "camera", "screenshot",
         "haircustom", "create_custom_preset",
         "import_custom_preset", "export_custom_preset",
@@ -124,6 +124,8 @@ public static class CommandDispatcher
         ["preset_preview_range"] = PresetHandlers.PreviewRange,
         ["select_preset"] = PresetHandlers.Select,
         ["set_param"] = ParamHandlers.Set,
+        ["set_params"] = ParamHandlers.SetMany,
+        ["body_height"] = BodyHandlers.Height,
         ["labels"] = LabelHandlers.Labels,
         ["label_set"] = LabelHandlers.LabelSet,
         ["settingsprobe"] = SettingsHandlers.Probe,
