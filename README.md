@@ -18,6 +18,8 @@ control, while you keep working in VRoid Studio as usual.
 - **Hair materials and layers** — inspect and edit supported material properties and PNG layers,
   and assign materials to existing hair groups without replacing their geometry. See the
   [tool contract and limitations](docs/external-api.md#hair-material-editing).
+- **Iris textures** — import/export native iris PNG layers and control their visibility/opacity
+  without replacing the face. See [iris texture editing](docs/external-api.md#iris-texture-editing).
 - **Session diagnostics** — identify the loaded process/build, model path and unsaved state before
   working with multiple editor instances; clean exact recent-history entries without deleting models.
 - **Live visual feedback** — the agent receives rendered previews of the model and preset

@@ -363,6 +363,44 @@ The native compatibility updater resolves source asset references in the detache
 before committing the material copy. Arbitrary archive rewriting is not used. Transfer sources
 are retained for native edit-history replay; undo/redo across model switches remains unverified.
 
+## Iris texture editing
+
+`iris_texture` edits the current model's iris image through native advanced-edit and raster
+history commands. It does not select a face preset, import a whole model, or modify face
+geometry, eyebrows, eyeliner, lashes or eye highlights. The iris image contains both eyes;
+separate left/right texture uploads are not supported.
+
+| Action | Arguments | Meaning |
+| --- | --- | --- |
+| `inspect` | none | Resolve the native iris image, preparation state, raster layers and overlay colors |
+| `prepare` | none | Make the iris image editable without baking its current overlay colors |
+| `import_texture` | `path`, optional `layer` | Replace the indexed layer, or add a new layer when omitted |
+| `export_texture` | `layer`, `path` | Export a raster layer to a new PNG file |
+| `set_layer` | `layer`, `key`, `value` | Change `visibility` (`true`/`false`) or `opacity` (`0`..`1`) |
+
+Start with `inspect`; use `prepare` only when necessary. Layer indices are zero-based and
+must be refreshed after structural edits. Import requires a prepared image and a valid PNG
+up to 4096 pixels per side / 16 megapixels / 64 MiB. Export refuses existing files.
+Import replaces only the selected layer, so inspect other visible layers that could cover it.
+For a PNG containing authored colors, inspect the iris color overlay: the existing
+`set_param` tool can set both iris colors to white when an enabled overlay would tint the PNG.
+These are explicit editing decisions; importing does not silently change colors or hide layers.
+
+```json
+{"name":"iris_texture","arguments":{"action":"inspect"}}
+{"name":"iris_texture","arguments":{"action":"prepare"}}
+{"name":"iris_texture","arguments":{"action":"import_texture","layer":0,"path":"C:/art/iris-teal.png"}}
+{"name":"iris_texture","arguments":{"action":"export_texture","layer":0,"path":"C:/art/iris-layer-check.png"}}
+```
+
+Mutations await a completed native rebuild, with a 12-second deadline. A readiness timeout
+can follow an applied edit: inspect before retrying. `preview_verified:false` requires the
+caller to inspect actual renders. Save to a separate trial and explicitly reopen it to verify
+persistence. Unsupported or ambiguous native iris layouts are rejected instead of guessing
+internal image IDs. The tool never rewrites a `.vroid` archive.
+
+See [iris texture validation](iris-texture-validation.md) for tested and unverified paths.
+
 ## Session identity and history
 
 `state` additionally returns `process_id`, `app_version`, `plugin_build` (loaded assembly module

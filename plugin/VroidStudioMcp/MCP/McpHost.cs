@@ -877,6 +877,16 @@ public static class McpHost
                   ["key"] = P("string", "Exact native property key from inspect, or visibility/opacity/blend for set_layer."),
                   ["value"] = P("string", "Color, finite numeric value, boolean or supported blend name as a string.") }),
 
+            T("iris_texture",
+                "Inspect and edit the current model's native iris raster texture without changing face geometry, brows or lashes. Start with inspect; prepare explicitly makes the iris texture editable. import_texture replaces the indexed raster layer, or adds a layer when omitted. export_texture writes one layer PNG to a new file. set_layer supports visibility and opacity. Layer indices are session-local: refresh inspect after edits. Native history commands wait for completed model readiness; inspect state before retrying a timeout. Use screenshots and save/reopen to assess appearance. The PNG contains both eyes; this does not select a face preset or import a whole model.",
+                new[] { "action", "layer", "path", "key", "value" }, new[] { "action" },
+                new() {
+                    ["action"] = EnumSchema("Operation.", "inspect", "prepare", "import_texture", "export_texture", "set_layer"),
+                    ["layer"] = P("integer", "Raster layer index from inspect. Omit on import to add a new layer."),
+                    ["path"] = P("string", "Local PNG path; exports refuse existing files."),
+                    ["key"] = EnumSchema("Layer property.", "visibility", "opacity"),
+                    ["value"] = P("string", "Boolean or opacity from 0 to 1, as a string.") }),
+
             T("hair_material_source",
               "Read a .vroidcustomitem with VRoid's native loader and list its shared hair materials, or copy one material and its dependencies into the current model. Does not import into the custom-item library, wear the item, or replace hairstyle geometry. Import does not assign the material: use hair_material list then assign. Only supported native material transfers are accepted.",
               new[] { "action", "path", "material_id", "name" }, new[] { "action", "path" },

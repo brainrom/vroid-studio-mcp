@@ -9,6 +9,7 @@ are not distributed with this repository.
 | Area | Existing coverage | This change | Remaining boundary |
 | --- | --- | --- | --- |
 | Hair | Presets, custom-item libraries, shared colors | Native material catalog, properties and group assignments | Strand/guide geometry editing, bones and gizmos are not added |
+| Irises | Presets and left/right colors | Native iris raster PNG import/export, preparation and layer visibility/opacity | Brows, eyeliner, lashes, highlights and other face texture channels are not exposed by this tool |
 | Materials | Global colors | Create, duplicate, rename, supported material colors/floats | Arbitrary Unity shader properties and unsafe reflection are not public tools |
 | Textures | Model/preset screenshots | Native editable raster-layer PNG import/export and inline layer previews | No brush painting, masks, layer tree restructuring or composited UV preview |
 | Layers | None | Native visibility, opacity and supported composition modes | No destructive merge/reorder/delete operations |

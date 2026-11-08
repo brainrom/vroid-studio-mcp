@@ -29,7 +29,7 @@ public static class HairMaterials
         return error == null;
     }
 
-    private static object New(string type, params object[] args)
+    internal static object New(string type, params object[] args)
     {
         var t = FindType(type) ?? throw new NotSupportedException($"Native type {type} is unavailable in this app build.");
         var ctor = t.GetConstructors().FirstOrDefault(c => Matches(c.GetParameters(), args));
@@ -46,7 +46,7 @@ public static class HairMaterials
         => parameters.Select((p, i) => args[i] == null || p.ParameterType.IsInstanceOfType(args[i])
             ? args[i] : RewrapTo(args[i], p.ParameterType)).ToArray();
 
-    private static object Call(object target, string method, params object[] args)
+    internal static object Call(object target, string method, params object[] args)
     {
         target = RealObj(target) ?? throw new InvalidOperationException($"Native target for {method} is absent.");
         var m = target.GetType().GetMethods(Instance).FirstOrDefault(m => m.Name == method && !m.IsGenericMethodDefinition && Matches(m.GetParameters(), args));
