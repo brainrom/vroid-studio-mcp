@@ -470,3 +470,60 @@ stay on the developer surface (identifier parsing — `internal-api.md` §5).
 - **Undo/redo** exists in the engine history (`Context`) but is not exposed yet.
 - `IsChecked` (`ColorViewModelBase`) toggles an overlay (`*_OverlayColorDisableFlag`); the UI has
   almost no explicit checkboxes, and it is not needed for the current surface.
+
+
+## Bounded hair geometry
+
+`hair_geometry(action, group?, material?, name?, key?, value?)` is separate from the
+geometry-preserving material tools. Use it only when geometry changes are intended.
+Enter an editable non-base Hairstyle category first.
+
+- `inspect`: list groups and material indices; optional `group` returns one group, its
+  path, name, transform, material ID, strand count, guide validity and parameter values.
+- `add`: requires source `group`, existing `material` and a unique `name` (1..128 characters).
+  Deep-clone the source's native guide; retain its transform and transferable scope; execute
+  `AddProceduralHairGroupCommand`. Existing groups and library files are not replaced.
+  The response identifies the new group/path. Native defaults may include six strands:
+  explicitly inspect and adjust the new group before saving or accepting its appearance.
+- `set`: requires a procedural `group`, allowlisted `key`, and numeric string `value`.
+  Brush groups are read-only. Native modification uses `reuseStrands=false` to regenerate
+  the target group's strands. Other groups are not selected for modification.
+
+| Key | Tool bounds | Native property |
+| --- | --- | --- |
+| `count` | integer 1..4 | ProceduralFormParameterSet.HairCount |
+| `length` | 0.05..1 | ProceduralFormParameterSet.Length |
+| `width` | 0.001..1 | HairParameterSet.WidthScale |
+| `position` | 0..360 degrees | ProceduralFormParameterSet.AngleFrom |
+| `interval` | 1..90 degrees | ProceduralFormParameterSet.AngleWidth |
+
+These are conservative tool limits, not the full editor ranges. Length is relative to the
+source guide. Position starts the fan around it (0 front, 90 model left); interval extends
+from that edge. Customized guide shapes can produce clipping or unexpected placement.
+All other raw parameters are inspection-only. Arch of Hair Length is never writable.
+
+```json
+{"name":"hair_geometry","arguments":{"action":"inspect"}}
+{"name":"hair_geometry","arguments":{"action":"add","group":0,"material":0,"name":"Fringe trial"}}
+```
+
+Refresh inspection and use the **returned new group index**, rather than assuming an index:
+
+```json
+{"name":"hair_geometry","arguments":{"action":"set","group":7,"key":"count","value":"2"}}
+{"name":"hair_geometry","arguments":{"action":"set","group":7,"key":"length","value":"0.4"}}
+```
+
+Indices can change after an addition or model/category switch. Inspect before every new
+editing sequence. Keep a recoverable model backup and use separate trials. This surface does
+not expose deletion, undo/redo, arbitrary reflection, guide sculpting or library saving.
+
+Mutation success returns `applied`, `ready`, `preview_verified:false` and `result`.
+Readiness requires a completed native rebuild, with a 12-second timeout. A post-mutation
+failure retains JSON `{error,details}` in the MCP error text (also in batch results).
+`details.applied` may be null if application cannot be established, or true after a confirmed
+native edit whose readiness timed out. Inspect state and group paths before retrying; do not
+blindly repeat an add. Native readiness never certifies a good-looking hairstyle.
+
+See [hair geometry validation](hair-geometry-validation.md) for the rejected visual trial
+and verified persistence, separately from successful API calls.

@@ -413,7 +413,10 @@ public static class McpHost
         if (!TryBuildCall(name, args, false, out var method, out var list, out var error))
             return Content(error, true);
         var result = CommandDispatcher.Submit(method, list.ToArray()).GetAwaiter().GetResult();
-        if (!result.Ok) return Content(result.Error, true);
+        if (!result.Ok)
+            return name == "hair_geometry" && result.Result != null
+                ? Content(MiniJson.Serialize(new Dictionary<string, object> { ["error"] = result.Error, ["details"] = result.Result }, false), true)
+                : Content(result.Error, true);
 
         if (TakeMaterialPreview(result.Result) is byte[] materialPng)
             return new Dictionary<string, object> { ["isError"] = false, ["content"] = new List<object> {
@@ -708,7 +711,9 @@ public static class McpHost
                 var result = CommandDispatcher.Submit(buildMethod, list.ToArray()).GetAwaiter().GetResult();
                 if (result.Ok && TakeMaterialPreview(result.Result) is byte[] materialPng)
                     AddBatchImage(images, ref imageBytes, index, "hair material layer", materialPng);
-                results.Add(result.Ok ? OkResult(result.Result) : OpError(result.Error));
+                results.Add(result.Ok ? OkResult(result.Result) : method == "hair_geometry" && result.Result != null
+                    ? new Dictionary<string, object> { ["ok"] = false, ["error"] = result.Error, ["details"] = result.Result }
+                    : OpError(result.Error));
                 if (result.Ok) CollectBatchImages(method, list, index, images, ref imageBytes);
             }
         }
@@ -876,6 +881,17 @@ public static class McpHost
                   ["name"] = P("string", "New name for rename."),
                   ["key"] = P("string", "Exact native property key from inspect, or visibility/opacity/blend for set_layer."),
                   ["value"] = P("string", "Color, finite numeric value, boolean or supported blend name as a string.") }),
+
+            T("hair_geometry",
+                "Inspect native hair groups or explicitly add a procedural group using a deep copy of an existing group's guide and transform. Unlike hair_material, add and set change geometry. Existing groups and custom-library files are not replaced. Add uses native defaults: inspect and adjust the new group before saving. Set supports only the bounded keys advertised by inspect. Refresh indices after additions/model changes. Native readiness does not verify rendered appearance; save/reopen and inspect actual screenshots.",
+                new[] { "action", "group", "material", "name", "key", "value" }, new[] { "action" },
+                new() {
+                    ["action"] = EnumSchema("Operation.", "inspect", "add", "set"),
+                    ["group"] = P("integer", "Group index from inspect: source guide for add, target procedural group for set. Omit for full inventory inspection."),
+                    ["material"] = P("integer", "Required existing material index from hair_material list for add."),
+                    ["name"] = P("string", "Required unique name for the added group."),
+                    ["key"] = P("string", "Supported bounded parameter key from inspect for set."),
+                    ["value"] = P("string", "Finite parameter value as a string.") }),
 
             T("eyelid_texture",
                 "Inspect the current model's native eyelid raster layers, export one layer to a new PNG, or change visibility/opacity. Requires an applied editable eyelid item, for example imported through Face/Eyelids. Does not edit iris textures, face geometry, eyebrows or other face channels. Refresh layer indices after changing items. Mutations await native rebuild completion; preview_verified=false requires visual inspection.",

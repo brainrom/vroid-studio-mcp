@@ -8,7 +8,7 @@ are not distributed with this repository.
 
 | Area | Existing coverage | This change | Remaining boundary |
 | --- | --- | --- | --- |
-| Hair | Presets, custom-item libraries, shared colors | Native material catalog, properties and group assignments | Strand/guide geometry editing, bones and gizmos are not added |
+| Hair | Presets, custom-item libraries, shared colors | Native materials and assignments; explicit procedural-group addition from a cloned guide and five bounded parameters | No individual-strand sculpting, guide-point editing, bones or gizmos; visual fitting is not automatic |
 | Irises | Presets and left/right colors | Native iris raster PNG import/export, preparation and layer visibility/opacity | Brows, eyeliner, lashes, highlights and other face texture channels are not exposed by this tool |
 | Eyelids | Stock presets | Native eyelid custom-item import/export; raster inspection/export, visibility and opacity | No other Face custom-item categories, raster import, preparation or tree restructuring |
 | Materials | Global colors | Create, duplicate, rename, supported material colors/floats | Arbitrary Unity shader properties and unsafe reflection are not public tools |

@@ -22,6 +22,9 @@ control, while you keep working in VRoid Studio as usual.
   without replacing the face. See [iris texture editing](docs/external-api.md#iris-texture-editing).
 - **Eyelid layers** — import native eyelid custom items and select their visible raster layers.
   See [eyelid texture layers](docs/external-api.md#eyelid-texture-layers).
+- **Bounded hair geometry** — explicitly add a procedural group from an existing guide and
+  adjust five limited parameters. This changes geometry and requires visual review; it is not
+  automatic hairstyle fitting. See [hair geometry](docs/external-api.md#bounded-hair-geometry).
 - **Session diagnostics** — identify the loaded process/build, model path and unsaved state before
   working with multiple editor instances; clean exact recent-history entries without deleting models.
 - **Live visual feedback** — the agent receives rendered previews of the model and preset
