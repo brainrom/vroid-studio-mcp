@@ -22,6 +22,12 @@ public static class SessionHandlers
             ["updating"] = _modelUpdating,
             ["selectors"] = inEdit ? Selectors.Count : 0,
             ["in_edit"] = inEdit,
+            ["process_id"] = Environment.ProcessId,
+            ["app_version"] = UnityEngine.Application.version,
+            ["plugin_build"] = typeof(Plugin).Assembly.ManifestModule.ModuleVersionId.ToString(),
+            ["model_path"] = inEdit ? WinePaths.ToHost(FileOps.CurrentModelPath()) : null,
+            ["unsaved"] = inEdit && MainActionHandler() != null
+                ? Get(MainActionHandler(), "IsUnSaved") : null,
             ["section"] = inEdit && _editRootVm != null ? Sections.SectionLabel(Get(_editRootVm, "EditMode")?.ToString()) : null,
         };
         yield break;
