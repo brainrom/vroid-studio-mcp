@@ -1,5 +1,13 @@
 # Hairline placement investigation (VRoid Studio 2.16.0)
 
+> **Owner acceptance update (2026-11-08): FAILED.** The owner rejected the Gothic
+> appearance too and requested reverting the added hair. Its separate trial was
+> archived outside the character outputs; the three pre-hairline model files were
+> verified unchanged. Idol's rejected addition had already been removed. Earlier
+> visual inspection results below are historical and do not establish owner
+> acceptance. Native placement/persistence evidence is unchanged; no further
+> fitting is planned because the owner will edit manually.
+
 This follows PR #5 at `4dfd9faff9cd06afe1a7d2e8a9b00eb717d1636f`.
 The earlier addition succeeded technically and failed visually. This change adds
 a bounded guide-origin placement control; it does not claim the rejected hairstyle
