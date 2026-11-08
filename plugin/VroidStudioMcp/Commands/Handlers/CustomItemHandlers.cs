@@ -36,7 +36,7 @@ public static class CustomItemHandlers
             && !ArgParse.Flag(wearArg, "wear", out wear, out var wearError, ("now", true), ("later", false)))
         { ctx.Error = $"import_custom_preset: {wearError}"; yield break; }
         if (!CustomItems.SectionSupported(section))
-        { ctx.Error = "import_custom_preset: custom items exist for Hairstyle and Outfit only"; yield break; }
+        { ctx.Error = "import_custom_preset: supported categories are Hairstyle, Outfit and Face/Eyelids"; yield break; }
         if (!CustomItems.LooksLikeCustomItem(path))
         { ctx.Error = $"import_custom_preset: '{path}' must be a {CustomItems.Extension} file"; yield break; }
 
@@ -50,6 +50,8 @@ public static class CustomItemHandlers
         var tab = requestedTab;
         var category = CommandUtil.EnterCategory(section, tab);
         if (category == null) { ctx.Error = $"no tab '{tab}'{CommandUtil.TabHint(section)}"; yield break; }
+        if (!CustomItems.CategorySupported(section, category))
+        { ctx.Error = "import_custom_preset: only the native Eyelids category is supported in Face"; yield break; }
         yield return WaitCategorySelected(selectorShort, tab);
 
         var presetNode = Get(category, "PresetCategoryViewModel") ?? category;
@@ -68,6 +70,8 @@ public static class CustomItemHandlers
         { ctx.Error = $"import_custom_preset: {loadTaskError}"; yield break; }
         if (!CustomItems.TryReadContents(Get(loadTask, "Result"), out var typeId, out var engineName, out var metaError))
         { ctx.Error = $"import_custom_preset: {metaError}"; yield break; }
+        if (section == "FaceEditor" && typeId != CustomItems.EyelidType)
+        { ctx.Error = "import_custom_preset: Face accepts only a native Level2.Eyelid custom item; no library import was performed"; yield break; }
 
         // The import target comes from the file, not from the caller's current tab: switch to the
         // category the engine reports (when the section has it).
@@ -205,7 +209,7 @@ public static class CustomItemHandlers
         if (!ArgParse.Int(indexArg, "index", out var id, out var idError, 0))
         { ctx.Error = $"export_custom_preset: {idError}; use the id from presets()"; yield break; }
         if (!CustomItems.SectionSupported(section))
-        { ctx.Error = "export_custom_preset: custom items exist for Hairstyle and Outfit only"; yield break; }
+        { ctx.Error = "export_custom_preset: supported categories are Hairstyle, Outfit and Face/Eyelids"; yield break; }
 
         bool save = true;
         var saveArg = CommandUtil.Arg(ctx, 4);
@@ -234,6 +238,8 @@ public static class CustomItemHandlers
         var selectorShort = section + ".PresetsSelectorViewModel";
         var category = CommandUtil.EnterCategory(section, tab);
         if (category == null) { ctx.Error = $"no tab '{tab}'{CommandUtil.TabHint(section)}"; yield break; }
+        if (!CustomItems.CategorySupported(section, category))
+        { ctx.Error = "export_custom_preset: only the native Eyelids category is supported in Face"; yield break; }
         yield return WaitCategorySelected(selectorShort, tab);
 
         var entry = Presets.EntryAt(selectorShort, tab, id);

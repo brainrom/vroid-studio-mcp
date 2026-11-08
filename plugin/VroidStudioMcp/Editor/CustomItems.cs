@@ -50,10 +50,16 @@ public static class CustomItems
         AnswerImportWear = false;
     }
 
-    /// <summary>Custom items exist for the Hairstyle and Outfit sections only.</summary>
+    public const string EyelidType = "TransferableGroupType.N00.Level2.Eyelid";
+
+    /// <summary>Supported sections; Face is further restricted to the native eyelid category.</summary>
     public static bool SectionSupported(string section)
         => string.Equals(section, "HairEditor", StringComparison.Ordinal)
-        || string.Equals(section, "ClothingEditor", StringComparison.Ordinal);
+        || string.Equals(section, "ClothingEditor", StringComparison.Ordinal)
+        || string.Equals(section, "FaceEditor", StringComparison.Ordinal);
+
+    public static bool CategorySupported(string section, object category)
+        => SectionSupported(section) && (section != "FaceEditor" || CategoryType(category) == EyelidType);
 
     // ------------------------------------------------------------------ file / metadata helpers
 
