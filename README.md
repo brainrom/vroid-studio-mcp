@@ -13,8 +13,13 @@ control, while you keep working in VRoid Studio as usual.
 
 - **Character creation and editing** — create or open a character, let the agent build it, and save
   it (`.vroid`).
-- **Full editor control** — work through the editor as a person would: sections (`Face`,
+- **Core editor sections** — sections (`Face`,
   `Hairstyle`, `Body`, `Outfit`), categories, presets, and individual sliders/colors.
+- **Hair materials and layers** — inspect and edit supported material properties and PNG layers,
+  and assign materials to existing hair groups without replacing their geometry. See the
+  [tool contract and limitations](docs/external-api.md#hair-material-editing).
+- **Session diagnostics** — identify the loaded process/build, model path and unsaved state before
+  working with multiple editor instances; clean exact recent-history entries without deleting models.
 - **Live visual feedback** — the agent receives rendered previews of the model and preset
   thumbnails, so it decides by looking instead of guessing.
 - **High-quality preview render** — configurable MSAA and supersampling (SSAA) plus anisotropic

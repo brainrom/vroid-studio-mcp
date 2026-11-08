@@ -297,6 +297,86 @@ The agent must not be left with the "unsaved changes" dialog.
   `exit save` waits for the in-place save to finish (with a timeout) before quitting; `discard`
   resets dirty and quits.
 
+## Hair material editing
+
+`hair_material` operates on native model data and history commands, not Unity renderer overrides.
+It does not select a preset or generate/replace hair geometry. Start with `action:list`, then
+`action:inspect, material:<index>`. Material, slot, layer and group indices are zero-based,
+session-local and must be refreshed after structural edits. Work on a separately saved model
+when evaluating a purchased texture pack.
+
+| Action | Arguments in addition to action | Meaning |
+| --- | --- | --- |
+| `list` | none | Materials and existing group assignments |
+| `inspect` | `material` | Native colors, supported float properties, slots and raster layers |
+| `create` | optional `name` | Create a native hair material |
+| `duplicate` | `material` | Duplicate the material without assigning it |
+| `rename` | `material`, `name` | Rename using native history |
+| `assign` | `material`, optional `group` | Assign to the indexed group, or the current selection |
+| `prepare` | `material` | Explicitly initialize advanced editable texture slots |
+| `import_texture` | `material`, `slot`, `path`, optional `layer` | Replace one raster layer, or add a new layer if omitted |
+| `export_texture` | `material`, `slot`, `layer`, `path` | Export one raster layer to a new PNG file |
+| `preview_texture` | `material`, `slot`, `layer` | Return that raster layer as an MCP image |
+| `set_color` | `material`, `key`, `value` | Set an inspected native color property |
+| `set_color_enabled` | `material`, `key`, `value` | Enable/disable an inspected toggleable color with `true`/`false` |
+| `set_float` | `material`, `key`, `value` | Set an inspected supported shader parameter |
+| `set_layer` | `material`, `slot`, `layer`, `key`, `value` | Supported visibility, opacity or blend control |
+
+`key` must be a supported key from inspection, not a method name. Numeric and color values
+are strings. Import uses PNG files; exports refuse an existing target. Layer previews are
+individual raster contents, not a promise of a composited material or UV preview. Use the
+avatar `screenshot` to assess the rendered result. Layer stacks retain their native editability.
+Color entries report `enabled`, `disabled` and `can_set_enabled`. Material-owned base overlay
+and emission colors, when available, use `base:overlay` and `base:emission`; arbitrary global
+base-color IDs are not accepted. Changing a disabled color does not enable it automatically.
+
+```json
+{"name":"hair_material","arguments":{"action":"list"}}
+{"name":"hair_material","arguments":{"action":"inspect","material":0}}
+{"name":"hair_material","arguments":{"action":"prepare","material":0}}
+{"name":"hair_material","arguments":{"action":"import_texture","material":0,"slot":0,"layer":0,"path":"C:/art/hair-base.png"}}
+{"name":"hair_material","arguments":{"action":"assign","material":0,"group":0}}
+{"name":"hair_material","arguments":{"action":"preview_texture","material":0,"slot":0,"layer":0}}
+```
+
+After a mutation, refresh inspection before using indices again. A rendered edit waits up to
+12 seconds for a completed native model rebuild and model readiness (preset-list events do
+not satisfy this check). A timeout is an error, not success;
+the command may already have applied, so inspect before retrying. Material creation, duplication
+and renaming also await native readiness. No automatic save occurs.
+
+**VRoid 2.16 background-session preview limitation:** group material assignments persist in the
+model, but the tested hidden/background renderer kept the old material until reopening. This
+has not been reproduced in an owner-visible session. Mutation results report
+`preview_verified:false`; `ready:true` confirms a completed model update, not visual acceptance.
+Save to a separate trial file, explicitly return to the main menu, reopen it and inspect a
+`screenshot`. Save once more after reopening to refresh a stale saved thumbnail. The plugin
+never reloads an open model automatically. Blanket native refresh was tested and did not
+invalidate this cache, so it is not exposed as a public action.
+
+`hair_material_source` reads a `.vroidcustomitem` through the native loader. Its `list` action
+takes `path` and returns source material IDs. `import` additionally takes `material_id` and an
+optional `name`; supported material-only transfer is separate from assignment. It never wears
+the source item or adds it to the reusable custom-item library. Unsupported native transfer
+paths produce an explicit error rather than falling back to hairstyle replacement.
+The native compatibility updater resolves source asset references in the detached destination
+before committing the material copy. Arbitrary archive rewriting is not used. Transfer sources
+are retained for native edit-history replay; undo/redo across model switches remains unverified.
+
+## Session identity and history
+
+`state` additionally returns `process_id`, `app_version`, `plugin_build` (loaded assembly module
+ID), `model_path`, and `unsaved` (null if unavailable). Verify this identity before controlling
+an editor when multiple instances exist. A DLL copied on disk is not proof that an existing
+process loaded it; BepInEx requires an app restart.
+
+`recent_models` defaults to `action:list`. `action:remove` requires an exact `path` returned by
+the list and refuses the current open model. It removes only the recent-history entry, never
+the model file. This is intended for explicitly requested task cleanup; preserve owner history.
+`action:restore` appends an absolute path to an existing `.vroid` file without opening it.
+It refuses a full native history so restoration cannot evict another entry. Use it to restore
+owner entries displaced by the app's recent-history limit after removing known temporary entries.
+
 ## Developer and debug surface
 
 The raw line protocol additionally exposes commands not published over MCP. They are intended for
