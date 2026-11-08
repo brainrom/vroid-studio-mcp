@@ -54,7 +54,7 @@ public static class CommandDispatcher
     // pathless `save` at the model select used to invoke the engine's Save on a stale VM.
     private static readonly HashSet<string> EditRequired = new()
     {
-        "save", "categories", "enter", "presets", "presets_full", "select_preset",
+        "save", "export_avatar", "categories", "enter", "presets", "presets_full", "select_preset",
         "set_param", "label_set", "preset_preview_list", "preset_preview_range",
         "camera", "screenshot",
         "haircustom", "create_custom_preset",
@@ -76,6 +76,8 @@ public static class CommandDispatcher
             _currentMethod = _current.Ctx.Method;
             _currentStarted = DateTime.UtcNow;
             if (_current.Ctx.Method.Length == 0) _current.Ctx.Error = "empty method";
+            else if (NativeAvatarExport.Busy && _current.Ctx.Method != "state" && _current.Ctx.Method != "ping")
+                _current.Ctx.Error = "a native avatar export is still running; wait for its native callback before submitting commands";
             else if (EditRequired.Contains(_current.Ctx.Method) && !VroidState._inEdit)
                 _current.Ctx.Error = $"{_current.Ctx.Method}: no model open; call open or create first";
             else if (Handlers.TryGetValue(_current.Ctx.Method, out var handler))
@@ -114,6 +116,7 @@ public static class CommandDispatcher
         ["camera"] = CameraHandlers.Camera,
         ["screenshot"] = ScreenshotHandlers.Screenshot,
         ["save"] = SessionHandlers.Save,
+        ["export_avatar"] = AvatarExportHandlers.Export,
         ["exit"] = SessionHandlers.Exit,
         ["main_menu"] = SessionHandlers.MainMenu,
         ["categories"] = CategoryHandlers.List,

@@ -58,6 +58,7 @@ public static class VroidState
         // is one the plugin did not intercept and will block until a human answers.
         var dialog = First(__args);
         DialogTrace.OnShow(dialog);
+        NativeAvatarExport.OnDialogProvider(__instance);
         try
         {
             if (__instance == null || !_awaitingLoadError) return;

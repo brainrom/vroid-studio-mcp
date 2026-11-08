@@ -61,6 +61,51 @@ attackers.
   true→false`); `section` — the current section, or `null` outside the editor.
 - `open` returns once `in_edit` and `ready` are true (model built, camera reset).
 
+## Native avatar export (experimental; runtime UNVERIFIED)
+
+`export_avatar(path, version, metadata_json, overwrite=false, timeout_seconds=120)` is a native VRM
+export adapter for **Windows app 2.16.0 only**. Open the app's existing VRM Export screen first and
+finish or cancel all dialogs. The tool requires a ready model and initialized native export context;
+it does not navigate, save the `.vroid` source or change saved export settings. Native source
+preservation/cleanup and consumer compatibility have not been runtime verified.
+
+- `path`: absolute local file path ending `.vrm` in an existing directory. UNC/device paths,
+  alternate streams, directories and existing nonregular targets are rejected.
+- `version`: required string `"0"` or `"1"`; no inferred/default VRM format.
+- `metadata_json`: required JSON **string** containing the object below. All fields are mandatory,
+  case-sensitive and explicit, including permissions/licenses. Unknown/duplicate keys and invalid
+  value types/enums fail before export starts. Obtain licensing choices from the owner.
+- `overwrite`: false by default; true explicitly permits final target replacement.
+- `timeout_seconds`: integer 10..300, default 120; a timeout is not cancellation.
+
+VRM 0 requires `title`, `version`, `author`, `contactInformation`, `reference`, `allowedUser`,
+`violentUssage`, `sexualUssage`, `commercialUssage`, `otherPermissionUrl`, `licenseType`,
+`otherLicenseUrl`. Title/version/author must be non-empty. The five permission/license fields
+(`allowedUser`, the three `*Ussage` fields and `licenseType`) take exact native enum names; an
+invalid value reports the allowed names. Other fields are strings and may be explicitly empty.
+The `Ussage` spelling matches the native API.
+
+VRM 1 requires `Name`, `Version`, `Authors`, `CopyrightInformation`, `ContactInformation`,
+`References`, `ThirdPartyLicenses`, `AvatarPermission`, `ViolentUsage`, `SexualUsage`,
+`CommercialUsage`, `PoliticalOrReligiousUsage`, `AntisocialOrHateUsage`, `CreditNotation`,
+`Redistribution`, `Modification`, `OtherLicenseUrl`. Name/version must be non-empty. Authors is
+a non-empty array of non-empty strings; References is a string array and may be empty. ViolentUsage,
+SexualUsage, PoliticalOrReligiousUsage, AntisocialOrHateUsage and Redistribution are booleans.
+AvatarPermission, CommercialUsage, CreditNotation and Modification take exact native enum names;
+other fields are strings.
+
+The native exporter uses combined hair, no texture shrinking and no mesh/material reduction.
+Thumbnail, eye and spring behavior follow the existing native context. Export first writes a unique
+temporary `.vrm` next to the target. Publication requires the native success callback **and** a
+non-empty regular output file. Existing target presence never proves export success. On a publication
+error the native output path is reported for recovery.
+
+A callback timeout publishes no final file and does not stop native work. MCP `status` reports
+`native_export_busy`; queued commands except `state`/`ping` are rejected until the native callback.
+A late callback cleans up abandoned temporary output. A coroutine that terminates without its callback
+keeps this guard closed: cancellation/recovery remains unresolved. Do not blindly retry. The timeout
+error includes the temporary path; preserve it if diagnosis is needed.
+
 ## Sections
 
 - Exposed sections: `Face`, `Hairstyle`, `Body`, `Outfit` (UI labels; the enum mapping stays internal,

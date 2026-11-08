@@ -44,7 +44,7 @@ public static class McpHost
     // Global session contract only. Feature specifics live in the owning tool's description and in
     // help(topic); this keeps the always-loaded instructions short and avoids duplication/drift.
     private const string Instructions =
-        "vroid-studio-mcp drives a running VRoid Studio 2.14 editor through its own internal API. " +
+        "vroid-studio-mcp drives a running VRoid Studio editor through its own internal API. " +
         "The editor, plugin and this endpoint are already running; you do NOT launch anything.\n\n" +
         "WORKFLOW: open(path) or create(gender) -> sections() -> categories(section) -> enter(section, category) -> set_param/select_preset.\n" +
         "Sections are stable UI labels: Face, Hairstyle, Body, Outfit. A category is a tab inside a section. " +
@@ -81,6 +81,31 @@ public static class McpHost
     {
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
+            ["avatar_export"] =
+                "EXPERIMENTAL NATIVE AVATAR EXPORT (runtime UNVERIFIED)\n" +
+                "export_avatar(path, version, metadata_json, overwrite=false, timeout_seconds=120). " +
+                "Windows app 2.16.0; existing native VRM Export screen only; no dialogs may be open. " +
+                "No source save or implicit navigation. version is explicitly '0' or '1'. metadata_json is a JSON string, " +
+                "with every field below required (case-sensitive; unknown/duplicate fields rejected). Obtain licensing " +
+                "decisions from the owner; do not invent permission or license values. Enum values are exact native " +
+                "enum names; invalid values return the allowed names before any export starts.\n" +
+                "VRM 0: title, version, author, contactInformation, reference, allowedUser, violentUssage, sexualUssage, " +
+                "commercialUssage, otherPermissionUrl, licenseType, otherLicenseUrl. title/version/author must be non-empty; " +
+                "allowedUser, violentUssage, sexualUssage, commercialUssage and licenseType are enum strings. " +
+                "Other fields are strings (optional information may be explicitly empty). The 'Ussage' spelling is native.\n" +
+                "VRM 1: Name, Version, Authors, CopyrightInformation, ContactInformation, References, ThirdPartyLicenses, " +
+                "AvatarPermission, ViolentUsage, SexualUsage, CommercialUsage, PoliticalOrReligiousUsage, AntisocialOrHateUsage, " +
+                "CreditNotation, Redistribution, Modification, OtherLicenseUrl. Name/Version must be non-empty; Authors is " +
+                "a non-empty string array; References is a string array (may be empty). ViolentUsage, SexualUsage, " +
+                "PoliticalOrReligiousUsage, AntisocialOrHateUsage and Redistribution are booleans. AvatarPermission, " +
+                "CommercialUsage, CreditNotation and Modification are enum strings. Other fields are strings.\n" +
+                "Native success callback plus non-empty output are required; existing-file presence never proves success. " +
+                "Target publication uses a same-directory temporary .vrm. A timeout leaves native work running, blocks " +
+                "MCP mutations until its callback and never publishes late output; temporary output is cleaned up on that " +
+                "late callback. A coroutine that never calls back keeps the guard closed. Check status; do not blindly retry. " +
+                "Native thumbnail/eye/spring settings follow the existing native export context. Geometry uses combined hair, " +
+                "no texture shrinking and no mesh/material reduction. Native cleanup, metadata validity in consumers and " +
+                "source preservation still require runtime acceptance on disposable data before production use.",
             ["outfit"] =
                 "OUTFIT\n" +
                 "- A clothing category's parameters belong to the currently applied item, not to the tab. Every item exposes its " +
@@ -362,7 +387,7 @@ public static class McpHost
             {
                 ["protocolVersion"] = requested != null && KnownProtocols.Contains(requested) ? requested : ProtocolVersion,
                 ["capabilities"] = new Dictionary<string, object> { ["tools"] = new Dictionary<string, object>() },
-                ["serverInfo"] = new Dictionary<string, object> { ["name"] = "vroid-studio-mcp", ["version"] = "1.0.0" },
+                ["serverInfo"] = new Dictionary<string, object> { ["name"] = "vroid-studio-mcp", ["version"] = Plugin.Version },
                 ["instructions"] = Instructions + "\n" + PathHint + "\n",
             });
         }
@@ -570,6 +595,7 @@ public static class McpHost
             d["inflight_seconds"] = Math.Round(secs, 1);
         }
         d["queued"] = CommandDispatcher.QueueDepth;
+        d["native_export_busy"] = NativeAvatarExport.Busy;
         var total = _batchTotal;
         if (total > 0)
             d["batch"] = new Dictionary<string, object> { ["index"] = _batchIndex, ["total"] = total, ["method"] = _batchMethod };
@@ -1135,6 +1161,24 @@ public static class McpHost
                       ["enum"] = new List<object> { "inline", "file", "both" },
                       ["default"] = "inline",
                   },
+              }),
+
+            T("export_avatar",
+              "EXPERIMENTAL / runtime UNVERIFIED: export the open avatar as VRM 0 or 1 through the native app exporter. " +
+              "Windows app 2.16.0 only. First open the app's native VRM Export screen and finish/cancel all dialogs. " +
+              "Does not navigate or save the .vroid source. Requires explicit version and all metadata/licensing fields; " +
+              "call help('avatar_export') for the metadata contract. Writes a temporary .vrm beside the target and publishes " +
+              "only after the native success callback; overwrite defaults false. Timeout does not cancel native work; " +
+              "MCP mutations remain blocked until the native callback. No mesh/material reduction or texture shrinking.",
+              new[] { "path", "version", "metadata_json", "overwrite", "timeout_seconds" },
+              new[] { "path", "version", "metadata_json" },
+              new()
+              {
+                  ["path"] = P("string", "Absolute existing-directory local target path ending .vrm; no UNC/device paths or alternate streams."),
+                  ["version"] = EnumSchema("Explicit VRM format version.", "0", "1"),
+                  ["metadata_json"] = P("string", "JSON object with every metadata/licensing field explicit; see help('avatar_export'). No licensing defaults are supplied."),
+                  ["overwrite"] = P("boolean", "Explicitly replace an existing target (default false)."),
+                  ["timeout_seconds"] = P("integer", "Native callback deadline, 10..300 seconds (default 120)."),
               }),
 
             T("save",
