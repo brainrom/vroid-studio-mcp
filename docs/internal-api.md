@@ -455,17 +455,45 @@ operations transparent, `CommandDispatcher` accepts both host-POSIX (`/home/...`
   host paths (Wine → POSIX, otherwise Windows). A remote client is formally possible (the address is configurable),
   but the paths diverge and file commands are meaningless — this is not supported.
 
-## 15. VRM export (not implemented)
+## 15. VRM export (experimental; runtime UNVERIFIED)
 
-The only item of the original MVP that remained unwrapped externally. The engine entry points were found
-statically (addresses — of this build):
+`export_avatar` wraps the existing native export-screen coroutine, scoped to Windows app 2.16.0.
+Signatures were inspected in the installed IL2CPP interop assemblies; build success is not runtime
+acceptance. No app restart, source save or native export was used to validate this implementation.
 
 - Transition to the export screen: `VRoid.Studio.EditRootScreen.ViewModel.EnterToVRMExport()` (opens
   `VRMExportScreen`).
 - Screen: `VRoid.Studio.VRMExportScreen.ViewModel`.
-- Export engine: `VRoidStudio.Exporter.VRoidExporter`, `VRoidStudioExporterUtil`,
+- Export engine: `VRoidStudio.Exporter.VRoidExporter`, `VRoidStudio.Exporter.VRoidStudioExportUtil`,
   `VRoidStudio.Exporter.ExportAvatarContainer`.
 - Settings: `VRoidStudio.PhotoBooth.ExportSettings` (atlas, texture compression, reduction…).
 
-It is not yet exposed externally (command/MCP tool); implementing it will require opening the export screen,
-filling in `ExportSettings`, and waiting for the export to complete by signal — like other async operations.
+The concrete adapter is `VRoidStudio.GUI.AvatarEditor.PhotoBooth.PhotoBoothViewModel.ExportVRM0/1`:
+
+```text
+IEnumerator ExportVRM0/1(string exportPath, glTF_VRM_Meta/VRM10ObjectMeta meta,
+    bool isEnableHairCombination, bool shrinkTexture, MaterialReductionMode materialReductionMode,
+    bool runMeshOptimization, Action onSuccess, Action onFailure, Action<double> onProgress)
+```
+
+Run the returned native enumerator on the existing `PhotoBoothCoroutineExecutor` with Unity's own
+`StartCoroutine`; do not manually tick it (nested coroutines/render waits must retain native semantics).
+The native success/failure callbacks are the completion evidence. `VRoidStudioExportUtil` provides
+an export-avatar container/clone pipeline; calling the lower-level `VRoidExporter` against the edited
+avatar directly could mutate skeleton/material state and is deliberately avoided.
+
+The tool captures `VRMExportScreen.ViewModel.OnScreenActivate/Deactivate`, requires initialized
+`ObsoleteLegacyPhotoBoothViewModel.V1PhotoBooth`, rejects rebuilding previews and native dialogs,
+and does not navigate or modify `ExportSettings`. Metadata is newly constructed from explicit client
+fields; permission and license decisions have no plugin defaults. Export uses combined hair with
+no texture shrinking, mesh optimization or material reduction. Native thumbnail, eye and spring
+handling remain owned by the existing screen context.
+
+Export writes a unique same-directory temporary `.vrm`; only native success plus a non-empty regular
+file allows publication to the requested path. Overwrite defaults false. A callback timeout never
+publishes late output: the operation is marked abandoned and its temporary output is removed on a
+late callback. Native work is not canceled; the command queue rejects everything except `state` and
+`ping` while it remains active. MCP `status.native_export_busy` also works outside that queue. A
+native coroutine that dies without a callback leaves the guard closed; safe cancellation/recovery
+is unresolved. Source preservation, coroutine cleanup, all failure paths and actual VRM consumer
+acceptance require runtime checks on disposable data before production use.

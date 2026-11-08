@@ -21,9 +21,10 @@ using static VroidStudioMcp.Hooks;
 
 namespace VroidStudioMcp;
 
-[BepInPlugin("com.kokokoshka.vroidstudiomcp", "VRoid Studio MCP", "1.1.0")]
+[BepInPlugin("com.kokokoshka.vroidstudiomcp", "VRoid Studio MCP", Plugin.Version)]
 public class Plugin : BasePlugin
 {
+    public const string Version = "1.1.0";
     internal static Harmony Harmony;
     private static bool _tickSeen;
     private static int _lastTickFrame = -1;
@@ -38,7 +39,7 @@ public class Plugin : BasePlugin
         ServerSettings.Load();
         PresetLabels.Reload();
         PluginLog.LogInfo($"labels: {PresetLabels.Count} from {PresetLabels.Files.Count} file(s) in {PresetLabels.Dir}");
-        PluginLog.LogInfo("VroidStudioMcp v1.1.0 loading...");
+        PluginLog.LogInfo($"VroidStudioMcp v{Version} loading...");
         Harmony = new Harmony("com.kokokoshka.vroidstudiomcp");
         MessagesI18n.Install();
         RenderQuality.Install();
@@ -132,6 +133,11 @@ public class Plugin : BasePlugin
         PatchAllByName("VRoid.Studio.Engine.Model", "OnModelUpdateComplete", modelUpd);
         PatchAllByName("VRoid.Studio.Engine.ViewModel", "OnModelUpdateComplete", modelUpd);
         PatchAllByName("VRoid.Studio.Component.VRoidCoreModelUpdater", "OnModelUpdateComplete", modelUpd);
+
+        PatchByTypeName("VRoid.Studio.VRMExportScreen.ViewModel", "OnScreenActivate", new HarmonyMethod(
+            typeof(NativeAvatarExport).GetMethod(nameof(NativeAvatarExport.OnScreenActivate))));
+        PatchByTypeName("VRoid.Studio.VRMExportScreen.ViewModel", "OnScreenDeactivate", new HarmonyMethod(
+            typeof(NativeAvatarExport).GetMethod(nameof(NativeAvatarExport.OnScreenDeactivate))));
 
         var camCtrl = new HarmonyMethod(typeof(Hooks).GetMethod(nameof(OnCameraController), BindingFlags.Public | BindingFlags.Static));
         PatchByTypeName("VRoidStudio.GUI.UserControls.VRoidStudioCameraViewController", "OnEnable", camCtrl);
