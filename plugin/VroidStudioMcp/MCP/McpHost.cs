@@ -112,7 +112,7 @@ public static class McpHost
                 "global (saved on disk) and show up in every model. Create one, named, with " +
                 "create_custom_preset(section, category, name) -> {id,name}; it is an empty template until it is\n" +
                 "designed in the hair design editor.\n" +
-                "- Custom-item files (*.vroidcustomitem; Hairstyle and Outfit only): " +
+                "- Custom-item files (*.vroidcustomitem; Hairstyle, Outfit and Face/Eyelids): " +
                 "import_custom_preset(section, category, path, name?, wear?) imports a file into the Custom tab " +
                 "(the category comes from the file; wear='now' applies it, 'later' (default) only adds it) and " +
                 "returns the new item; export_custom_preset(section, category, id, path, save?, overwrite?) " +
@@ -413,7 +413,15 @@ public static class McpHost
         if (!TryBuildCall(name, args, false, out var method, out var list, out var error))
             return Content(error, true);
         var result = CommandDispatcher.Submit(method, list.ToArray()).GetAwaiter().GetResult();
-        if (!result.Ok) return Content(result.Error, true);
+        if (!result.Ok)
+            return name == "hair_geometry" && result.Result != null
+                ? Content(MiniJson.Serialize(new Dictionary<string, object> { ["error"] = result.Error, ["details"] = result.Result }, false), true)
+                : Content(result.Error, true);
+
+        if (TakeMaterialPreview(result.Result) is byte[] materialPng)
+            return new Dictionary<string, object> { ["isError"] = false, ["content"] = new List<object> {
+                new Dictionary<string, object> { ["type"] = "text", ["text"] = MiniJson.Serialize(result.Result, false) },
+                new Dictionary<string, object> { ["type"] = "image", ["mimeType"] = "image/png", ["data"] = Convert.ToBase64String(materialPng) } } };
 
         // Image-returning tools rebuild their MCP content block after the engine call.
         if (name == "screenshot") return ScreenshotContent(ArgAt(list, 0) ?? "inline");
@@ -425,6 +433,13 @@ public static class McpHost
 
     private static string ArgAt(List<string> list, int i) =>
         list != null && i >= 0 && i < list.Count && !string.IsNullOrEmpty(list[i]) ? list[i] : null;
+
+    private static byte[] TakeMaterialPreview(object result)
+    {
+        if (result is Dictionary<string, object> data && data.TryGetValue("preview_png", out var png) && png is byte[] bytes)
+        { data.Remove("preview_png"); return bytes; }
+        return null;
+    }
 
     // Named arguments (object) -> the positional form of the command core. Missing required arguments
     // are always an error; unknown keys are an error only in the strict (batch) mode - a direct
@@ -694,7 +709,11 @@ public static class McpHost
                 if (!TryBuildCall(method, a, true, out var buildMethod, out var list, out var berr))
                 { results.Add(OpError(berr)); continue; }
                 var result = CommandDispatcher.Submit(buildMethod, list.ToArray()).GetAwaiter().GetResult();
-                results.Add(result.Ok ? OkResult(result.Result) : OpError(result.Error));
+                if (result.Ok && TakeMaterialPreview(result.Result) is byte[] materialPng)
+                    AddBatchImage(images, ref imageBytes, index, "hair material layer", materialPng);
+                results.Add(result.Ok ? OkResult(result.Result) : method == "hair_geometry" && result.Result != null
+                    ? new Dictionary<string, object> { ["ok"] = false, ["error"] = result.Error, ["details"] = result.Result }
+                    : OpError(result.Error));
                 if (result.Ok) CollectBatchImages(method, list, index, images, ref imageBytes);
             }
         }
@@ -837,12 +856,70 @@ public static class McpHost
         var list = new List<Tool>
         {
             T("state",
-              "Report editor readiness. Returns {ready, updating, selectors, in_edit, section}. " +
+              "Report editor readiness and identity. Returns {ready, updating, selectors, in_edit, section, process_id, app_version, plugin_build, model_path, unsaved}. " +
               "in_edit=true while a model is being edited (false at the model select / before any model); " +
               "ready=true once the model has finished building; updating=true while a rebuild is in flight; " +
               "selectors is the number of loaded category selectors (0 outside edit; >=4 once an editable model is open); " +
-              "section is the current UI section label or null. Read-only, no side effects.",
+              "section is the current UI section label or null. plugin_build is the loaded assembly module ID; unsaved is null when unavailable. Read-only, no side effects.",
               Array.Empty<string>(), Array.Empty<string>(), new()),
+
+            T("recent_models",
+              "List native recent-model paths, remove one exact entry, or restore an existing .vroid file to the end of history without opening it. Never deletes model files. Remove refuses the currently open model; restore refuses to evict entries when history is full. Preserve owner entries; use only for explicitly requested history cleanup/restoration.",
+              new[] { "action", "path" }, Array.Empty<string>(),
+              new() { ["action"] = EnumSchema("Default list.", "list", "remove", "restore"), ["path"] = P("string", "Exact listed path for remove, absolute existing .vroid file for restore.") }),
+
+            T("hair_material",
+              "Inspect and edit native hair materials without replacing hairstyle geometry. Start with list; use returned zero-based material/group indices, then inspect for slot/layer indices and property keys. Indices are session-local: refresh after edits. prepare explicitly converts a material to native editable layers. import_texture replaces the specified layer, or adds a layer when layer is omitted; requires a prepared slot. export_texture writes one raster layer PNG; preview_texture returns it inline. assign targets group, or the selected group when omitted. set_color/set_float use exact inspect keys; set_layer uses visibility, opacity or blend. Mutations use native history and wait for model readiness; a timeout can mean the edit applied, so inspect before retrying. No geometry, preset replacement or arbitrary shader invocation.",
+              new[] { "action", "material", "slot", "layer", "group", "path", "name", "key", "value" }, new[] { "action" },
+              new() {
+                  ["action"] = EnumSchema("Operation.", "list", "inspect", "prepare", "create", "duplicate", "rename", "assign", "import_texture", "export_texture", "preview_texture", "set_color", "set_color_enabled", "set_float", "set_layer"),
+                  ["material"] = P("integer", "Material index from list; required except list/create."),
+                  ["slot"] = P("integer", "Slot index from inspect for texture/layer actions."),
+                  ["layer"] = P("integer", "Raster layer index; omit only to add a new layer on import."),
+                  ["group"] = P("integer", "Group index from list for assign; omitted means current selected group."),
+                  ["path"] = P("string", "Local PNG import/export path. Export refuses existing files."),
+                  ["name"] = P("string", "New name for rename."),
+                  ["key"] = P("string", "Exact native property key from inspect, or visibility/opacity/blend for set_layer."),
+                  ["value"] = P("string", "Color, finite numeric value, boolean or supported blend name as a string.") }),
+
+            T("hair_geometry",
+                "Inspect native hair groups or explicitly add a procedural group using a deep copy of an existing group's guide and transform. Unlike hair_material, add and set change geometry. Existing groups and custom-library files are not replaced. Add uses native defaults: inspect and adjust the new group before saving. Set supports only the bounded keys advertised by inspect. Refresh indices after additions/model changes. Native readiness does not verify rendered appearance; save/reopen and inspect actual screenshots.",
+                new[] { "action", "group", "material", "name", "key", "value" }, new[] { "action" },
+                new() {
+                    ["action"] = EnumSchema("Operation.", "inspect", "add", "set"),
+                    ["group"] = P("integer", "Group index from inspect: source guide for add, target procedural group for set. Omit for full inventory inspection."),
+                    ["material"] = P("integer", "Required existing material index from hair_material list for add."),
+                    ["name"] = P("string", "Required unique name for the added group."),
+                    ["key"] = P("string", "Supported bounded parameter key from inspect for set."),
+                    ["value"] = P("string", "Finite parameter value as a string.") }),
+
+            T("eyelid_texture",
+                "Inspect the current model's native eyelid raster layers, export one layer to a new PNG, or change visibility/opacity. Requires an applied editable eyelid item, for example imported through Face/Eyelids. Does not edit iris textures, face geometry, eyebrows or other face channels. Refresh layer indices after changing items. Mutations await native rebuild completion; preview_verified=false requires visual inspection.",
+                new[] { "action", "layer", "path", "key", "value" }, new[] { "action" },
+                new() {
+                    ["action"] = EnumSchema("Operation.", "inspect", "export_texture", "set_layer"),
+                    ["layer"] = P("integer", "Existing raster layer index from inspect."),
+                    ["path"] = P("string", "New local PNG destination for export_texture."),
+                    ["key"] = EnumSchema("Layer property.", "visibility", "opacity"),
+                    ["value"] = P("string", "Boolean or finite opacity from 0 to 1, as a string.") }),
+
+            T("iris_texture",
+                "Inspect and edit the current model's native iris raster texture without changing face geometry, brows or lashes. Start with inspect; prepare explicitly makes the iris texture editable. import_texture replaces the indexed raster layer, or adds a layer when omitted. export_texture writes one layer PNG to a new file. set_layer supports visibility and opacity. Layer indices are session-local: refresh inspect after edits. Native history commands wait for completed model readiness; inspect state before retrying a timeout. Use screenshots and save/reopen to assess appearance. The PNG contains both eyes; this does not select a face preset or import a whole model.",
+                new[] { "action", "layer", "path", "key", "value" }, new[] { "action" },
+                new() {
+                    ["action"] = EnumSchema("Operation.", "inspect", "prepare", "import_texture", "export_texture", "set_layer"),
+                    ["layer"] = P("integer", "Raster layer index from inspect. Omit on import to add a new layer."),
+                    ["path"] = P("string", "Local PNG path; exports refuse existing files."),
+                    ["key"] = EnumSchema("Layer property.", "visibility", "opacity"),
+                    ["value"] = P("string", "Boolean or opacity from 0 to 1, as a string.") }),
+
+            T("hair_material_source",
+              "Read a .vroidcustomitem with VRoid's native loader and list its shared hair materials, or copy one material and its dependencies into the current model. Does not import into the custom-item library, wear the item, or replace hairstyle geometry. Import does not assign the material: use hair_material list then assign. Only supported native material transfers are accepted.",
+              new[] { "action", "path", "material_id", "name" }, new[] { "action", "path" },
+              new() { ["action"] = EnumSchema("Operation.", "list", "import"),
+                  ["path"] = P("string", "Existing .vroidcustomitem file."),
+                  ["material_id"] = P("string", "Exact source material ID from list, required for import."),
+                  ["name"] = P("string", "Optional name for the copied material.") }),
 
             T("sections",
               "List editable sections. Returns [{id,title}] where id is the stable label to pass to " +
@@ -1019,7 +1096,7 @@ public static class McpHost
 
             T("import_custom_preset",
               "Import a reusable custom item (*.vroidcustomitem) from a host path into the Custom tab of the " +
-              "matching Hairstyle or Outfit category. The target category is taken from the file, so a file " +
+              "matching Hairstyle, Outfit or Face/Eyelids category. Other Face categories are rejected. The target category is taken from the file, so a file " +
               "imported from another tab in the same section lands in its own category (the result carries the " +
               "actual category, plus requested_category when it differs). wear='now' applies the imported item " +
               "to the model; wear='later' (default) only adds it to the library. name optionally renames the new " +
@@ -1028,7 +1105,7 @@ public static class McpHost
               new[] { "section", "category", "path", "name", "wear" }, new[] { "section", "category", "path" },
               new()
               {
-                  ["section"] = EnumSchema("Section label (Hairstyle or Outfit).", sections),
+                  ["section"] = EnumSchema("Section label (Hairstyle, Outfit, or Face for Eyelids only).", sections),
                   ["category"] = P("string", "Category/tab name from categories()."),
                   ["path"] = P("string", "Host path to a *.vroidcustomitem file (e.g. " + HostPathExample + ")."),
                   ["name"] = P("string", "Optional name for the imported item."),
@@ -1036,7 +1113,7 @@ public static class McpHost
               }),
 
             T("export_custom_preset",
-              "Export a custom preset (a Custom-tab item, *.vroidcustomitem) from a Hairstyle or Outfit category " +
+              "Export a custom preset (a Custom-tab item, *.vroidcustomitem) from Hairstyle, Outfit or Face/Eyelids " +
               "to a host path. `id` is the preset id from presets(); the item may be worn or not. save=true " +
               "(default) first saves the worn item's current design into its reusable file, so unsaved edits are " +
               "included; for an unworn item that step is skipped (saved=false) and the stored file is exported " +
@@ -1048,7 +1125,7 @@ public static class McpHost
               new[] { "section", "category", "index", "path" },
               new()
               {
-                  ["section"] = EnumSchema("Section label (Hairstyle or Outfit).", sections),
+                  ["section"] = EnumSchema("Section label (Hairstyle, Outfit, or Face for Eyelids only).", sections),
                   ["category"] = P("string", "Category/tab name from categories()."),
                   ["index"] = P("integer", "Preset id from presets() (kind 'custom')."),
                   ["path"] = P("string", "Host path for the exported file ('.vroidcustomitem' is appended when the path has no extension)."),

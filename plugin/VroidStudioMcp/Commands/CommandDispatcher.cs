@@ -59,6 +59,11 @@ public static class CommandDispatcher
         "camera", "screenshot",
         "haircustom", "create_custom_preset",
         "import_custom_preset", "export_custom_preset",
+        "hair_material",
+        "hair_geometry",
+        "hair_material_source",
+        "iris_texture",
+        "eyelid_texture",
     };
 
     public static Task<CommandResult> Submit(string method, string[] args)
@@ -107,6 +112,12 @@ public static class CommandDispatcher
     {
         ["ping"] = ctx => { ctx.Result = "pong"; return CommandUtil.Done(); },
         ["state"] = SessionHandlers.State,
+        ["recent_models"] = RecentModelHandlers.Run,
+        ["hair_material"] = HairMaterialHandlers.Run,
+        ["hair_geometry"] = HairGeometryHandlers.Run,
+        ["hair_material_source"] = HairMaterialSourceHandlers.Run,
+        ["iris_texture"] = IrisTextureHandlers.Run,
+        ["eyelid_texture"] = EyelidTextureHandlers.Run,
         ["sections"] = ctx => { ctx.Result = Sections.SectionList(); return CommandUtil.Done(); },
         ["open"] = SessionHandlers.Open,
         ["create"] = SessionHandlers.Create,

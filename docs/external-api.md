@@ -194,7 +194,7 @@ model.
   empty template (no strand geometry) until it is sculpted in the design editor. Creating does not
   apply the preset; use `select_preset` for that. Blocking.
 - `import_custom_preset(section, category, path, name?, wear?)` — import a reusable custom item
-  (`*.vroidcustomitem`) from a host path into the Custom tab of the matching Hairstyle or Outfit
+  (`*.vroidcustomitem`) from a host path into the Custom tab of the matching Hairstyle, Outfit or Face/Eyelids
   category. The target category comes from the file, so a file imported from another tab in the same
   section lands in its own category (`category` in the result, plus `requested_category` when they
   differ). `name` optionally renames the new item. `wear` chooses whether the imported item is applied
@@ -202,7 +202,7 @@ model.
   section, category, id, name, file, applied, wear_requested, type, count, renamed}`. Blocking.
 - `export_custom_preset(section, category, index, path, save?, overwrite?)` — export the Custom-tab
   item with the `id` from `presets` to a `*.vroidcustomitem` file (the extension is appended when the
-  path has none). Hairstyle and Outfit only, and the item may be worn or not. `save=true` (default)
+  path has none). Hairstyle, Outfit and Face/Eyelids are supported; the item may be worn or not. `save=true` (default)
   includes the worn item's current design in the exported file; for an unworn item that step is
   skipped (`saved:false`) and the stored file is exported as-is. `save=false` exports the stored file
   without touching the model. `overwrite=false` refuses to replace an existing file. Returns
@@ -297,6 +297,158 @@ The agent must not be left with the "unsaved changes" dialog.
   `exit save` waits for the in-place save to finish (with a timeout) before quitting; `discard`
   resets dirty and quits.
 
+## Hair material editing
+
+`hair_material` operates on native model data and history commands, not Unity renderer overrides.
+It does not select a preset or generate/replace hair geometry. Start with `action:list`, then
+`action:inspect, material:<index>`. Material, slot, layer and group indices are zero-based,
+session-local and must be refreshed after structural edits. Work on a separately saved model
+when evaluating a source texture pack.
+
+| Action | Arguments in addition to action | Meaning |
+| --- | --- | --- |
+| `list` | none | Materials and existing group assignments |
+| `inspect` | `material` | Native colors, supported float properties, slots and raster layers |
+| `create` | optional `name` | Create a native hair material |
+| `duplicate` | `material` | Duplicate the material without assigning it |
+| `rename` | `material`, `name` | Rename using native history |
+| `assign` | `material`, optional `group` | Assign to the indexed group, or the current selection |
+| `prepare` | `material` | Explicitly initialize advanced editable texture slots |
+| `import_texture` | `material`, `slot`, `path`, optional `layer` | Replace one raster layer, or add a new layer if omitted |
+| `export_texture` | `material`, `slot`, `layer`, `path` | Export one raster layer to a new PNG file |
+| `preview_texture` | `material`, `slot`, `layer` | Return that raster layer as an MCP image |
+| `set_color` | `material`, `key`, `value` | Set an inspected native color property |
+| `set_color_enabled` | `material`, `key`, `value` | Enable/disable an inspected toggleable color with `true`/`false` |
+| `set_float` | `material`, `key`, `value` | Set an inspected supported shader parameter |
+| `set_layer` | `material`, `slot`, `layer`, `key`, `value` | Supported visibility, opacity or blend control |
+
+`key` must be a supported key from inspection, not a method name. Numeric and color values
+are strings. Import uses PNG files; exports refuse an existing target. Layer previews are
+individual raster contents, not a promise of a composited material or UV preview. Use the
+avatar `screenshot` to assess the rendered result. Layer stacks retain their native editability.
+Color entries report `enabled`, `disabled` and `can_set_enabled`. Material-owned base overlay
+and emission colors, when available, use `base:overlay` and `base:emission`; arbitrary global
+base-color IDs are not accepted. Changing a disabled color does not enable it automatically.
+
+```json
+{"name":"hair_material","arguments":{"action":"list"}}
+{"name":"hair_material","arguments":{"action":"inspect","material":0}}
+{"name":"hair_material","arguments":{"action":"prepare","material":0}}
+{"name":"hair_material","arguments":{"action":"import_texture","material":0,"slot":0,"layer":0,"path":"C:/art/hair-base.png"}}
+{"name":"hair_material","arguments":{"action":"assign","material":0,"group":0}}
+{"name":"hair_material","arguments":{"action":"preview_texture","material":0,"slot":0,"layer":0}}
+```
+
+After a mutation, refresh inspection before using indices again. A rendered edit waits up to
+12 seconds for a completed native model rebuild and model readiness (preset-list events do
+not satisfy this check). A timeout is an error, not success;
+the command may already have applied, so inspect before retrying. Material creation, duplication
+and renaming also await native readiness. No automatic save occurs.
+
+**VRoid 2.16 background-session preview limitation:** group material assignments persist in the
+model, but the tested hidden/background renderer kept the old material until reopening. This
+has not been reproduced in a foreground session. Mutation results report
+`preview_verified:false`; `ready:true` confirms a completed model update, not visual acceptance.
+Save to a separate trial file, explicitly return to the main menu, reopen it and inspect a
+`screenshot`. Save once more after reopening to refresh a stale saved thumbnail. The plugin
+never reloads an open model automatically. Blanket native refresh was tested and did not
+invalidate this cache, so it is not exposed as a public action.
+
+`hair_material_source` reads a `.vroidcustomitem` through the native loader. Its `list` action
+takes `path` and returns source material IDs. `import` additionally takes `material_id` and an
+optional `name`; supported material-only transfer is separate from assignment. It never wears
+the source item or adds it to the reusable custom-item library. Unsupported native transfer
+paths produce an explicit error rather than falling back to hairstyle replacement.
+The native compatibility updater resolves source asset references in the detached destination
+before committing the material copy. Arbitrary archive rewriting is not used. Transfer sources
+are retained for native edit-history replay; undo/redo across model switches remains unverified.
+
+## Iris texture editing
+
+`iris_texture` edits the current model's iris image through native advanced-edit and raster
+history commands. It does not select a face preset, import a whole model, or modify face
+geometry, eyebrows, eyeliner, lashes or eye highlights. The iris image contains both eyes;
+separate left/right texture uploads are not supported.
+
+| Action | Arguments | Meaning |
+| --- | --- | --- |
+| `inspect` | none | Resolve the native iris image, preparation state, raster layers and overlay colors |
+| `prepare` | none | Make the iris image editable without baking its current overlay colors |
+| `import_texture` | `path`, optional `layer` | Replace the indexed layer, or add a new layer when omitted |
+| `export_texture` | `layer`, `path` | Export a raster layer to a new PNG file |
+| `set_layer` | `layer`, `key`, `value` | Change `visibility` (`true`/`false`) or `opacity` (`0`..`1`) |
+
+Start with `inspect`; use `prepare` only when necessary. Layer indices are zero-based and
+must be refreshed after structural edits. Import requires a prepared image and a valid PNG
+up to 4096 pixels per side / 16 megapixels / 64 MiB. Export refuses existing files.
+Import replaces only the selected layer, so inspect other visible layers that could cover it.
+For a PNG containing authored colors, inspect the iris color overlay: the existing
+`set_param` tool can set both iris colors to white when an enabled overlay would tint the PNG.
+These are explicit editing decisions; importing does not silently change colors or hide layers.
+
+```json
+{"name":"iris_texture","arguments":{"action":"inspect"}}
+{"name":"iris_texture","arguments":{"action":"prepare"}}
+{"name":"iris_texture","arguments":{"action":"import_texture","layer":0,"path":"C:/art/iris-teal.png"}}
+{"name":"iris_texture","arguments":{"action":"export_texture","layer":0,"path":"C:/art/iris-layer-check.png"}}
+```
+
+Mutations await a completed native rebuild, with a 12-second deadline. A readiness timeout
+can follow an applied edit: inspect before retrying. `preview_verified:false` requires the
+caller to inspect actual renders. Save to a separate trial and explicitly reopen it to verify
+persistence. Unsupported or ambiguous native iris layouts are rejected instead of guessing
+internal image IDs. The tool never rewrites a `.vroid` archive.
+
+See [iris texture validation](iris-texture-validation.md) for tested and unverified paths.
+
+## Eyelid texture layers
+
+`eyelid_texture` supports `inspect`, `export_texture` (`layer`, `path`) and
+`set_layer` (`layer`, `key`, `value`). Layer keys are `visibility` and `opacity`
+(finite `0`..`1`); exports require a new PNG path. Inspect returns the exact native
+eyelid group/image, editable state and raster layer names, visibility, opacity and
+blend mode. Other face channels and geometry are outside this tool.
+
+Use `import_custom_preset` with `section:"Face"`, `category:"Eyelids"` to import an
+eyelid custom item through VRoid's native registry. Face imports must have the exact
+native `Level2.Eyelid` root type; other Face categories and item types are rejected.
+`wear:"later"` only adds the library item. `wear:"now"` applies its eyelid group;
+inspect the item and back up the model before replacing an existing group.
+This does not import a complete face, sample model, iris or clothing set.
+
+```json
+{"name":"import_custom_preset","arguments":{"section":"Face","category":"Eyelids","path":"C:/art/eyelids.vroidcustomitem","wear":"now"}}
+{"name":"eyelid_texture","arguments":{"action":"inspect"}}
+{"name":"eyelid_texture","arguments":{"action":"set_layer","layer":0,"key":"visibility","value":"true"}}
+{"name":"eyelid_texture","arguments":{"action":"set_layer","layer":0,"key":"opacity","value":"0.7"}}
+{"name":"eyelid_texture","arguments":{"action":"export_texture","layer":0,"path":"C:/art/eyelid-layer.png"}}
+```
+
+Layer editing requires an already editable native image, such as a layered custom
+item. PNG import, asset-backed preparation, blending changes and layer restructuring
+are not exposed here. Refresh indices after item changes. Mutations wait for a
+completed native rebuild for up to 12 seconds; a timeout can follow an applied edit,
+so inspect before retrying. `preview_verified:false` is not visual acceptance.
+Save/reopen and inspect actual renders separately. Shared skin colours are not
+changed automatically.
+
+See [eyelid layer validation](eyelid-texture-validation.md) for tested and
+unverified paths, including the untested Face/Eyelids custom-item export route.
+
+## Session identity and history
+
+`state` additionally returns `process_id`, `app_version`, `plugin_build` (loaded assembly module
+ID), `model_path`, and `unsaved` (null if unavailable). Verify this identity before controlling
+an editor when multiple instances exist. A DLL copied on disk is not proof that an existing
+process loaded it; BepInEx requires an app restart.
+
+`recent_models` defaults to `action:list`. `action:remove` requires an exact `path` returned by
+the list and refuses the current open model. It removes only the recent-history entry, never
+the model file. Use only for explicitly requested cleanup; preserve unrelated history entries.
+`action:restore` appends an absolute path to an existing `.vroid` file without opening it.
+It refuses a full native history so restoration cannot evict another entry. Use it to restore
+entries displaced by the app's recent-history limit after removing known temporary entries.
+
 ## Developer and debug surface
 
 The raw line protocol additionally exposes commands not published over MCP. They are intended for
@@ -318,3 +470,60 @@ stay on the developer surface (identifier parsing — `internal-api.md` §5).
 - **Undo/redo** exists in the engine history (`Context`) but is not exposed yet.
 - `IsChecked` (`ColorViewModelBase`) toggles an overlay (`*_OverlayColorDisableFlag`); the UI has
   almost no explicit checkboxes, and it is not needed for the current surface.
+
+
+## Bounded hair geometry
+
+`hair_geometry(action, group?, material?, name?, key?, value?)` is separate from the
+geometry-preserving material tools. Use it only when geometry changes are intended.
+Enter an editable non-base Hairstyle category first.
+
+- `inspect`: list groups and material indices; optional `group` returns one group, its
+  path, name, transform, material ID, strand count, guide validity and parameter values.
+- `add`: requires source `group`, existing `material` and a unique `name` (1..128 characters).
+  Deep-clone the source's native guide; retain its transform and transferable scope; execute
+  `AddProceduralHairGroupCommand`. Existing groups and library files are not replaced.
+  The response identifies the new group/path. Native defaults may include six strands:
+  explicitly inspect and adjust the new group before saving or accepting its appearance.
+- `set`: requires a procedural `group`, allowlisted `key`, and numeric string `value`.
+  Brush groups are read-only. Native modification uses `reuseStrands=false` to regenerate
+  the target group's strands. Other groups are not selected for modification.
+
+| Key | Tool bounds | Native property |
+| --- | --- | --- |
+| `count` | integer 1..4 | ProceduralFormParameterSet.HairCount |
+| `length` | 0.05..1 | ProceduralFormParameterSet.Length |
+| `width` | 0.001..1 | HairParameterSet.WidthScale |
+| `position` | 0..360 degrees | ProceduralFormParameterSet.AngleFrom |
+| `interval` | 1..90 degrees | ProceduralFormParameterSet.AngleWidth |
+
+These are conservative tool limits, not the full editor ranges. Length is relative to the
+source guide. Position starts the fan around it (0 front, 90 model left); interval extends
+from that edge. Customized guide shapes can produce clipping or unexpected placement.
+All other raw parameters are inspection-only. Arch of Hair Length is never writable.
+
+```json
+{"name":"hair_geometry","arguments":{"action":"inspect"}}
+{"name":"hair_geometry","arguments":{"action":"add","group":0,"material":0,"name":"Fringe trial"}}
+```
+
+Refresh inspection and use the **returned new group index**, rather than assuming an index:
+
+```json
+{"name":"hair_geometry","arguments":{"action":"set","group":7,"key":"count","value":"2"}}
+{"name":"hair_geometry","arguments":{"action":"set","group":7,"key":"length","value":"0.4"}}
+```
+
+Indices can change after an addition or model/category switch. Inspect before every new
+editing sequence. Keep a recoverable model backup and use separate trials. This surface does
+not expose deletion, undo/redo, arbitrary reflection, guide sculpting or library saving.
+
+Mutation success returns `applied`, `ready`, `preview_verified:false` and `result`.
+Readiness requires a completed native rebuild, with a 12-second timeout. A post-mutation
+failure retains JSON `{error,details}` in the MCP error text (also in batch results).
+`details.applied` may be null if application cannot be established, or true after a confirmed
+native edit whose readiness timed out. Inspect state and group paths before retrying; do not
+blindly repeat an add. Native readiness never certifies a good-looking hairstyle.
+
+See [hair geometry validation](hair-geometry-validation.md) for the rejected visual trial
+and verified persistence, separately from successful API calls.
