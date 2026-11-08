@@ -883,15 +883,15 @@ public static class McpHost
                   ["value"] = P("string", "Color, finite numeric value, boolean or supported blend name as a string.") }),
 
             T("hair_geometry",
-                "Inspect native hair groups or explicitly add a procedural group using a deep copy of an existing group's guide and transform. Unlike hair_material, add and set change geometry. Existing groups and custom-library files are not replaced. Add uses native defaults: inspect and adjust the new group before saving. Set supports only the bounded keys advertised by inspect. Refresh indices after additions/model changes. Native readiness does not verify rendered appearance; save/reopen and inspect actual screenshots.",
+                "Inspect native hair groups or explicitly add a procedural group using a deep copy of an existing group's guide and transform. Unlike hair_material, add and set change geometry. Existing groups and custom-library files are not replaced. Add uses native defaults, not source strands or parameter sets; a valid copied brush guide does not guarantee appropriate procedural root placement. Inspect raw defaults and adjust the new group before saving. Set supports only the bounded keys advertised by inspect; GrowFrom remains read-only. Refresh indices after additions/model changes. Native readiness does not verify rendered appearance; inspect actual screenshots before accepting and saving a trial.",
                 new[] { "action", "group", "material", "name", "key", "value" }, new[] { "action" },
                 new() {
                     ["action"] = EnumSchema("Operation.", "inspect", "add", "set"),
                     ["group"] = P("integer", "Group index from inspect: source guide for add, target procedural group for set. Omit for full inventory inspection."),
                     ["material"] = P("integer", "Required existing material index from hair_material list for add."),
                     ["name"] = P("string", "Required unique name for the added group."),
-                    ["key"] = P("string", "Supported bounded parameter key from inspect for set."),
-                    ["value"] = P("string", "Finite parameter value as a string.") }),
+                    ["key"] = EnumSchema("Supported parameter key. Experimental origin_x/y/z translate only this procedural group's guide origin; inspect the stored coordinates and per-call bounds first.", "count", "length", "width", "position", "interval", "origin_x", "origin_y", "origin_z"),
+                    ["value"] = P("string", "Finite parameter value as a string. Origin values are absolute uncalibrated stored coordinates, with a maximum axis change of 0.02 native units per call; other axes, rotation and scale are preserved.") }),
 
             T("eyelid_texture",
                 "Inspect the current model's native eyelid raster layers, export one layer to a new PNG, or change visibility/opacity. Requires an applied editable eyelid item, for example imported through Face/Eyelids. Does not edit iris textures, face geometry, eyebrows or other face channels. Refresh layer indices after changing items. Mutations await native rebuild completion; preview_verified=false requires visual inspection.",

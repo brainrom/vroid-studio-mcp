@@ -483,7 +483,9 @@ Enter an editable non-base Hairstyle category first.
 - `add`: requires source `group`, existing `material` and a unique `name` (1..128 characters).
   Deep-clone the source's native guide; retain its transform and transferable scope; execute
   `AddProceduralHairGroupCommand`. Existing groups and library files are not replaced.
-  The response identifies the new group/path. Native defaults may include six strands:
+  The response identifies the new group/path, source kind and `parameter_initialization`.
+  Only the guide and transform are reused: source strands, brush root positions and source
+  parameter sets are not copied. Native defaults may include six strands:
   explicitly inspect and adjust the new group before saving or accepting its appearance.
 - `set`: requires a procedural `group`, allowlisted `key`, and numeric string `value`.
   Brush groups are read-only. Native modification uses `reuseStrands=false` to regenerate
@@ -496,11 +498,33 @@ Enter an editable non-base Hairstyle category first.
 | `width` | 0.001..1 | HairParameterSet.WidthScale |
 | `position` | 0..360 degrees | ProceduralFormParameterSet.AngleFrom |
 | `interval` | 1..90 degrees | ProceduralFormParameterSet.AngleWidth |
+| `origin_x`, `origin_y`, `origin_z` | absolute stored coordinate; maximum change 0.02 native units per call | Guide.Origin.Position.x / y / z |
 
 These are conservative tool limits, not the full editor ranges. Length is relative to the
 source guide. Position starts the fan around it (0 front, 90 model left); interval extends
 from that edge. Customized guide shapes can produce clipping or unexpected placement.
 All other raw parameters are inspection-only. Arch of Hair Length is never writable.
+
+`guide.valid_for_copy` validates native structure and finite data only. A customized brush
+guide can pass this check and still produce crown intersections or stiff strips when used
+with procedural defaults. This add operation is not equivalent to the editor creating a
+fresh default procedural guide. Inspect `procedural_parameters.GrowFrom` along with the
+other raw defaults before diagnosing root placement; the current surface cannot change
+that field. Its mapping, units and supported range have not been established here, so do
+not infer that changing length, count or width can move roots to the source brush hairline.
+
+The **experimental** origin keys translate the entire selected procedural group's guide
+through `SetGuideOriginTransformCommand(IHairGroupPath, Transform)`. They accept an absolute
+component of the stored native guide-origin position, preserving the other two components,
+rotation and scale. `inspect.guide_origin` reports position `[x,y,z]`, rotation `[x,y,z,w]`,
+scale and validity; `settable` reports current per-call bounds. These coordinates are not
+calibrated metres, world axes, or an individual-root height. The 0.02 displacement cap is a
+tool limit, not an editor range or safety guarantee; repeated calls accumulate. Missing or
+non-finite transform data, degenerate rotation/scale, malformed guides and larger changes
+are rejected before the history call. Exact transform readback is required afterward, and
+the existing handler waits for native rebuild readiness. These guards and the native
+command signature are source-supported; runtime placement, rebuild signaling, persistence
+and undo/redo for this new route are **UNVERIFIED**. Brush groups remain read-only.
 
 ```json
 {"name":"hair_geometry","arguments":{"action":"inspect"}}
@@ -514,9 +538,24 @@ Refresh inspection and use the **returned new group index**, rather than assumin
 {"name":"hair_geometry","arguments":{"action":"set","group":7,"key":"length","value":"0.4"}}
 ```
 
+For a disposable placement trial, inspect group 7 first. **Only if its current stored X
+coordinate is 0**, this example requests a 0.01 native-unit translation on that axis:
+
+```json
+{"name":"hair_geometry","arguments":{"action":"set","group":7,"key":"origin_x","value":"0.01"}}
+```
+
+Use the inspected coordinate to choose a nearby absolute value for another group. Do not
+assume that increasing X, Y or Z moves the hair in a particular screen/world direction.
+
 Indices can change after an addition or model/category switch. Inspect before every new
 editing sequence. Keep a recoverable model backup and use separate trials. This surface does
 not expose deletion, undo/redo, arbitrary reflection, guide sculpting or library saving.
+On a disposable trial, compare the source and added group's guide/parameter inspection,
+then inspect matching front, side and crown renders after readiness. Check both root
+placement and strand shape; confirm prior groups are unchanged. Save/reopen only after the
+trial is visually accepted. A failed fit needs a proven root/guide editing route rather than
+further blind length or width adjustments.
 
 Mutation success returns `applied`, `ready`, `preview_verified:false` and `result`.
 Readiness requires a completed native rebuild, with a 12-second timeout. A post-mutation

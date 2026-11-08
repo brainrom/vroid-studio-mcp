@@ -13,6 +13,8 @@ public static class HairGeometry
 {
     private const string Specific = "VRoidCore.Common.SpecificTypes.";
     private const string ModifyCommand = "VRoidCore.Editing.History.Command.ModifyProceduralHairGroupParameterSetCommand";
+    private const float OriginStepLimit = 0.02f;
+    private static readonly string[] OriginKeys = { "origin_x", "origin_y", "origin_z" };
     private static readonly (string Key, string Set, string Property, float Min, float Max, bool Integer)[] Writable = {
         ("count", "ProceduralFormParameterSet", "HairCount", 1, 4, true),
         ("length", "ProceduralFormParameterSet", "Length", 0.05f, 1f, false),
@@ -63,6 +65,51 @@ public static class HairGeometry
     private static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
     private static bool Finite(Vector3 v) => Finite(v.x) && Finite(v.y) && Finite(v.z);
     private static bool Finite(Quaternion q) => Finite(q.x) && Finite(q.y) && Finite(q.z) && Finite(q.w);
+
+    private static (Vector3 Position, Quaternion Rotation, Vector3 Scale) ReadOrigin(object guide)
+    {
+        var origin = Get(guide, "Origin");
+        if (TypeName(origin) != "VRoidCore.Common.Types.Transform"
+            || Get(origin, "Position") is not Vector3 position || !Finite(position)
+            || Get(origin, "Rotation") is not Quaternion rotation || !Finite(rotation)
+            || Get(origin, "Scale") is not Vector3 scale || !Finite(scale))
+            throw new InvalidOperationException("The stored guide origin transform is missing or non-finite; translation is unavailable.");
+        double norm = (double)rotation.x * rotation.x + (double)rotation.y * rotation.y
+            + (double)rotation.z * rotation.z + (double)rotation.w * rotation.w;
+        if (norm < 1e-12 || Math.Abs(scale.x) < 1e-6f || Math.Abs(scale.y) < 1e-6f || Math.Abs(scale.z) < 1e-6f)
+            throw new InvalidOperationException("The stored guide origin has degenerate rotation or scale; translation is unavailable.");
+        return (position, rotation, scale);
+    }
+
+    private static object OriginInfo(object guide)
+    {
+        try
+        {
+            var o = ReadOrigin(guide);
+            return new Dictionary<string, object> {
+                ["valid_transform"] = true, ["position"] = new[] { o.Position.x, o.Position.y, o.Position.z },
+                ["rotation_xyzw"] = new[] { o.Rotation.x, o.Rotation.y, o.Rotation.z, o.Rotation.w },
+                ["scale"] = new[] { o.Scale.x, o.Scale.y, o.Scale.z },
+                ["coordinate_space"] = "native_stored_guide_origin", ["unit"] = "uncalibrated_native_units",
+                ["max_axis_change_per_call"] = OriginStepLimit, ["experimental"] = true,
+                ["note"] = "Absolute position only. World axes and physical units are not calibrated. Rotation and scale are preserved. The per-call tool limit does not guarantee a safe or suitable placement; repeated calls accumulate." };
+        }
+        catch (Exception e) { return new Dictionary<string, object> { ["valid_transform"] = false, ["error"] = Unwrap(e).Message }; }
+    }
+
+    private static IEnumerable<Dictionary<string, object>> OriginControls(object guide)
+    {
+        Vector3 position;
+        try { position = ReadOrigin(guide).Position; }
+        catch { return Array.Empty<Dictionary<string, object>>(); }
+        return OriginKeys.Select((key, axis) => new Dictionary<string, object> {
+            ["key"] = key, ["native_property"] = "Guide.Origin.Position." + "xyz"[axis],
+            ["value"] = position[axis], ["type"] = "number", ["unit"] = "uncalibrated_native_units",
+            ["coordinate_space"] = "native_stored_guide_origin", ["value_kind"] = "absolute",
+            ["min"] = position[axis] - OriginStepLimit, ["max"] = position[axis] + OriginStepLimit,
+            ["max_change_per_call"] = OriginStepLimit, ["range_kind"] = "tool_step_limit", ["experimental"] = true
+        });
+    }
 
     private static void ValidateGuide(object model, object path, object guide)
     {
@@ -125,16 +172,19 @@ public static class HairGeometry
             ["strand_count"] = EnumerateList(HairMaterials.Query("GetHairGroupChildrenQuery", model, path)).Count,
             ["material_id"] = Get(Get(parameters, "HairMaterialReference"), "SharedHairMaterialId"),
             ["guide"] = new Dictionary<string, object> { ["valid_for_copy"] = guideError == null, ["error"] = guideError,
-                ["raw_points"] = EnumerateList(Get(guide, "RawCylinderPoints")).Count, ["offset_points"] = EnumerateList(Get(guide, "OffsetCylinderPoints")).Count },
+                ["raw_points"] = EnumerateList(Get(guide, "RawCylinderPoints")).Count, ["offset_points"] = EnumerateList(Get(guide, "OffsetCylinderPoints")).Count,
+                ["validation_scope"] = "Native structure and finite values only; does not verify root placement or suitability for procedural generation." },
             ["hair_parameters"] = ScalarParameters(Get(parameters, "HairParameterSet")),
             ["guide_parameters"] = ScalarParameters(Get(parameters, "GuideParameterSet")),
             ["procedural_parameters"] = ScalarParameters(Get(parameters, "ProceduralFormParameterSet")),
+            ["guide_origin"] = OriginInfo(guide),
             ["settable"] = Procedural(path) ? Writable.Select(w => new Dictionary<string, object> {
                 ["key"] = w.Key, ["native_property"] = w.Set + "." + w.Property,
                 ["value"] = Get(Get(parameters, w.Set), w.Property), ["type"] = w.Integer ? "integer" : "number",
+                ["unit"] = w.Key switch { "count" => "strands", "length" => "guide_fraction", "width" => "scale", _ => "degrees" },
                 ["min"] = w.Min, ["max"] = w.Max, ["range_kind"] = "tool_safety_bounds"
-            }).ToArray() : Array.Empty<object>(),
-            ["note"] = "Position and interval use degrees around the guide: 0 front, 90 model left. Confirm placement on the actual guide. Bounds are conservative tool limits, not the full editor ranges. Other raw native values are read-only; Arch of Hair Length is never writable."
+            }).Concat(OriginControls(guide)).ToArray() : Array.Empty<object>(),
+            ["note"] = "Position and interval use degrees around the guide: 0 front, 90 model left. Confirm placement on the actual guide. Bounds are conservative tool limits, not the full editor ranges. Add copies the guide and transform, not source strands or parameter sets; native procedural defaults can start at a different root location. A copied brush guide is not a newly generated default procedural guide. Other raw native values, including GrowFrom, are read-only; Arch of Hair Length is never writable."
         };
     }
 
@@ -204,13 +254,43 @@ public static class HairGeometry
                     throw new InvalidOperationException("Added group identity, scope or material readback did not match the request.");
                 result = new Dictionary<string, object> { ["changed"] = true, ["group"] = added[0].Index, ["path"] = Path(added[0].Path),
                     ["name"] = name, ["source_group"] = group, ["source_path"] = Path(selected), ["guide_deep_copied"] = true,
-                    ["note"] = "Added with native default procedural parameters. After readiness, inspect and explicitly set count/length/width before visual acceptance. No library item was saved." };
+                    ["source_kind"] = Procedural(selected) ? "procedural" : "brush", ["source_parameters_copied"] = false,
+                    ["parameter_initialization"] = "native_defaults",
+                    ["note"] = "Added using the copied guide and transform with native default procedural parameters, not the source strands or parameter sets. After readiness, inspect all raw parameters, including GrowFrom, and adjust the advertised bounded keys before visual acceptance. A structurally valid brush guide may be unsuitable for procedural generation; experimental origin keys translate the whole guide, not individual strand roots. No library item was saved." };
                 return true;
             }
             if (action != "set") throw new ArgumentException("action must be inspect, add or set.");
             if (!Procedural(selected)) throw new ArgumentException("set supports procedural groups only; existing brush groups are read-only.");
+            int originAxis = Array.IndexOf(OriginKeys, key);
+            if (originAxis >= 0)
+            {
+                var guide = Get(NativeGroup(model, selected), "Guide");
+                ValidateGuide(model, selected, guide);
+                var origin = ReadOrigin(guide);
+                if (!ArgParse.Float(value, "value", out var requested, out var parseError,
+                    origin.Position[originAxis] - OriginStepLimit, origin.Position[originAxis] + OriginStepLimit))
+                    throw new ArgumentException(parseError + ". Origin values are absolute stored guide coordinates; inspect guide_origin and settable first. Axes and physical units are uncalibrated.");
+                var position = origin.Position;
+                if (position[originAxis].Equals(requested))
+                { result = new Dictionary<string, object> { ["changed"] = false, ["group"] = group, ["key"] = key, ["value"] = requested }; return true; }
+                position[originAxis] = requested;
+                var transform = HairMaterials.New("VRoidCore.Common.Types.Transform", position, origin.Rotation, origin.Scale);
+                progress["key"] = key; progress["requested_value"] = requested;
+                progress["before_origin"] = OriginInfo(guide);
+                mutationStarted = true;
+                HairMaterials.Execute(context, "SetGuideOriginTransformCommand", selected, transform);
+                var readbackGuide = Get(NativeGroup(model, selected), "Guide");
+                var readbackOrigin = ReadOrigin(readbackGuide);
+                progress["after_origin"] = OriginInfo(readbackGuide);
+                if (!readbackOrigin.Position.Equals(position) || !readbackOrigin.Rotation.Equals(origin.Rotation) || !readbackOrigin.Scale.Equals(origin.Scale))
+                    throw new InvalidOperationException("Native guide origin readback did not match the requested position or preserved rotation/scale.");
+                result = new Dictionary<string, object> { ["changed"] = true, ["group"] = group, ["path"] = Path(selected),
+                    ["key"] = key, ["value"] = readbackOrigin.Position[originAxis], ["guide_origin"] = OriginInfo(readbackGuide),
+                    ["experimental"] = true, ["note"] = "Translated this group's stored guide origin through native history. Visual placement, coordinate calibration and persistence require validation on a disposable model." };
+                return true;
+            }
             var field = Writable.FirstOrDefault(w => w.Key == key);
-            if (field.Key == null) throw new ArgumentException("key must be count, length, width, position or interval. Inspect settable for the current safety bounds.");
+            if (field.Key == null) throw new ArgumentException("key must be count, length, width, position, interval, origin_x, origin_y or origin_z. Inspect settable for the current tool bounds.");
             object parsed;
             if (field.Integer)
             {
