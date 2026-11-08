@@ -3,8 +3,8 @@
 This audit compares the existing public MCP surface with the installed Windows VRoid Studio
 2.16.0 interop metadata. Method availability is static evidence; it is not runtime verification.
 It is not a screen-by-screen claim of full editor coverage. Runtime outcomes belong in the
-PR validation record. Generated interop files, purchased assets and private character models
-are not distributed with this repository.
+PR validation record. Generated interop files and validation assets are not distributed
+with this repository.
 
 | Area | Existing coverage | This change | Remaining boundary |
 | --- | --- | --- | --- |
