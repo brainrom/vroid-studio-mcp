@@ -303,7 +303,7 @@ The agent must not be left with the "unsaved changes" dialog.
 It does not select a preset or generate/replace hair geometry. Start with `action:list`, then
 `action:inspect, material:<index>`. Material, slot, layer and group indices are zero-based,
 session-local and must be refreshed after structural edits. Work on a separately saved model
-when evaluating a purchased texture pack.
+when evaluating a source texture pack.
 
 | Action | Arguments in addition to action | Meaning |
 | --- | --- | --- |
@@ -347,7 +347,7 @@ and renaming also await native readiness. No automatic save occurs.
 
 **VRoid 2.16 background-session preview limitation:** group material assignments persist in the
 model, but the tested hidden/background renderer kept the old material until reopening. This
-has not been reproduced in an owner-visible session. Mutation results report
+has not been reproduced in a foreground session. Mutation results report
 `preview_verified:false`; `ready:true` confirms a completed model update, not visual acceptance.
 Save to a separate trial file, explicitly return to the main menu, reopen it and inspect a
 `screenshot`. Save once more after reopening to refresh a stale saved thumbnail. The plugin
@@ -444,10 +444,10 @@ process loaded it; BepInEx requires an app restart.
 
 `recent_models` defaults to `action:list`. `action:remove` requires an exact `path` returned by
 the list and refuses the current open model. It removes only the recent-history entry, never
-the model file. This is intended for explicitly requested task cleanup; preserve owner history.
+the model file. Use only for explicitly requested cleanup; preserve unrelated history entries.
 `action:restore` appends an absolute path to an existing `.vroid` file without opening it.
 It refuses a full native history so restoration cannot evict another entry. Use it to restore
-owner entries displaced by the app's recent-history limit after removing known temporary entries.
+entries displaced by the app's recent-history limit after removing known temporary entries.
 
 ## Developer and debug surface
 
